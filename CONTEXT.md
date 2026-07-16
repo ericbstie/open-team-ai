@@ -91,8 +91,12 @@ A tool exposed to agents that acts on the run's shared state — messages, board
 _Avoid_: action, command
 
 **Tool registry**:
-The fixed set of coordination verbs a role may call; one registry per role.
+The fixed set of coordination verbs a role may call, dispatched by name to a plain async handler; one registry per role, rendered verbatim into every request's `tools` array.
 _Avoid_: toolbox, toolkit
+
+**Tool outcome**:
+The three-way result of dispatching a coordination verb — `ok` (executed), `rejected` (a well-formed call the domain refused), or `invalid` (a schema/parse fault) — carried as the string content of the wire's single `tool` reply. Only a turn whose every call is `invalid` feeds the malformed-park counter; `rejected` resets it like `ok`.
+_Avoid_: tool result, return code, error
 
 **Message**:
 A realtime communication between agents — addressed direct, to a team, or broadcast — always ingested into the knowledge store at acceptance, delivered between turns via the recipient's mailbox, and never dropped.
@@ -109,6 +113,10 @@ _Avoid_: inbox, channel, buffer
 **Directive**:
 A meta-agent's process-improvement instruction. Mechanical directives are applied directly by the runtime; judgment directives go to the orchestrator, which must act or decline with a logged reason.
 _Avoid_: command, suggestion
+
+**Directive tier**:
+Which authority path a Directive takes: `mechanical` (applied directly by the runtime, its emitter verb returning the applied effect) or `judgment` (enqueued to the orchestrator, its emitter verb returning a directive id). The meta-agent emits directives only through tier-typed verbs — never messages or knowledge writes.
+_Avoid_: level, kind, class
 
 ### Knowledge & context
 
