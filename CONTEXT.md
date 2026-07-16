@@ -12,9 +12,17 @@ self-monitored by meta-agents — against a deterministic mock of the OpenAI API
 An LLM-driven actor in a run. Every agent — orchestrator, meta-agent, or team agent — runs on the same tool-calling turn loop.
 _Avoid_: bot, worker
 
+**Agent handle**:
+The short positional identifier an agent keeps for the whole run — `orchestrator`, `meta-N`, or `agent-N` — the one name used everywhere the agent is named: events, messages, the report, and the wire `user` field.
+_Avoid_: UUID, agent number
+
 **Role**:
 The control class an agent belongs to: Orchestrator, Meta-agent, or Team agent. Roles differ only by system prompt, tool registry, and context policy.
 _Avoid_: type, kind
+
+**Prompt skeleton**:
+The harness-owned system prompt of a role — a shared preamble plus a role block — static for the run; its only variable slot is the team agent's specialty.
+_Avoid_: prompt template, persona prompt
 
 **Orchestrator**:
 The single persistent control-plane agent that decomposes the goal, runs the task board and teams, and alone can finish the run.
@@ -33,8 +41,12 @@ The fixed set of team agents created at run start and never destroyed during the
 _Avoid_: fleet
 
 **Specialty**:
-The persona of a team agent — a named identity plus its system prompt — assigned and swapped by the orchestrator.
+The persona of a team agent — a slug name, a one-line description for the orchestrator's roster, and a freeform focus — authored by the orchestrator and rendered into the team-agent prompt skeleton.
 _Avoid_: role, profession
+
+**Generalist**:
+The harness-shipped default specialty every team agent boots with; the only built-in specialty — all others are orchestrator-authored.
+_Avoid_: unspecialized, blank agent
 
 **Team**:
 A runtime entity over team agents: a routable message scope plus a claim-eligibility scope for tasks, formed and dissolved by the orchestrator.
