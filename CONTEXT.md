@@ -215,12 +215,28 @@ A coarse (~500 ms) watchdog asserting the invariant that a quiescent system has 
 _Avoid_: heartbeat, timer
 
 **Event**:
-An append-only record of something that happened in a run; the event log is what tests, meta-agents, and the report read.
+An append-only record of something that happened in a run, carried in one envelope — its `EventId`, a `Clock` timestamp, its source, and a kind-tagged payload — appended on the single serial write path. The event log is the substrate metrics, meta-agents, the report, and the e2e tests all read.
 _Avoid_: log entry, audit record
 
+**EventId**:
+The run-scoped monotonic u64 that orders the event log — the single ordering key (the timestamp is informational only), minted by the same serial-write-path allocator as `MessageId` and `KnowledgeEntryId`. Every time-like metric is counted in `EventId` deltas, never wall-clock.
+_Avoid_: event index, offset, sequence number
+
+**Event source**:
+Who an event is attributed to: the acting agent (the verb caller) by handle, or `system` for runtime-internal events with no owning turn (liveness nudge, cap hit). Every non-actor subject of the event rides in its payload, never inferred from the source — so per-agent event order is a clean filter on the source.
+_Avoid_: actor, origin, emitter
+
+**EventKind**:
+The closed, kind-tagged set of things that can happen in a run — task transitions, message send/deliver, knowledge writes, turn completions, sleep/park/wake, team form/dissolve/membership, respecialization, directive issue/fulfil/decline, parallelism change, liveness nudge, context degradation, cap hit, and the run bookends — each with a typed payload. Closed so the log is exhaustive and replay-capable (though no replay ships in v1).
+_Avoid_: event type, message type
+
 **Run artifacts**:
-The persisted output directory of a run: the event log, the final board, the knowledge entries, and the report.
+The persisted `.openteam/runs/<run-id>/` directory of a run: `events.jsonl` (the full log, streamed line-by-line so it survives a cap-forced or crash kill), `board.json` (the final board), `knowledge.jsonl` (the entries, text without embeddings), and `report.md` (the finish-run report plus the run summary). The final three are finalized snapshots written on every termination path, clean or capped.
 _Avoid_: output dir, results
+
+**Run summary**:
+The report's projection of `Metrics` (the lightest-audience of the three, alongside the run-health line and the metrics digest): outcome and exit code, duration, agents and specialties used, tasks completed and cancelled, wakes and sleeps and parks, token spend, and meta interventions — rendered into `report.md` and printed identically to stdout.
+_Avoid_: run report, stats block
 
 ### Mock & determinism
 
