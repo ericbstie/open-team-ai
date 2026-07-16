@@ -265,8 +265,16 @@ The deterministic, seed-independent vector the mock returns for text at `/v1/emb
 _Avoid_: real embedding, semantic vector
 
 **Scenario**:
-A fixture file that overrides the built-in behavior model with scripted responses for tests.
+A JSON fixture file that overrides the built-in behavior model with scripted chat responses, loaded via `--scenario`, to reproduce the failure modes the built-in arc structurally cannot (stalls, livelock, message floods, malformed-park, deadlock). Keys each scripted response on `(agent-or-role, call-sequence)` with fallthrough to the built-in arc for unscripted completions; validated fail-fast on its own structure but never on the scripted calls (a scenario MAY script `invalid` calls). Chat-only — embeddings are never scenario-overridable (ADR 0019/0023).
 _Avoid_: script, test case
+
+**Scenario player**:
+The second `BehaviorModel` adapter beside the built-in arc, active when a Scenario is loaded — a stateless pure function of `(request, identity)` that serves a Script's response for a matched `(agent, call-sequence)` or delegates the completion to the built-in arc. The server still owns the response envelope, so it can emit an invalid *call* but never an invalid *response* (ADR 0023).
+_Avoid_: mock driver, replayer
+
+**Script**:
+One agent-or-role's entry in a Scenario: a selector (an exact agent handle or a role wildcard) plus an ordered list of responses indexed directly by the agent's call-sequence, with an optional cycling tail for unbounded pathologies. The call-sequence *is* the cursor, so no per-agent state is kept. (The built-in arc is deliberately *not* a script — see Behavior arc.)
+_Avoid_: sequence, track
 
 **Seed**:
 The run-level value from which all mock behavior derives, making responses deterministic per agent and call sequence.
