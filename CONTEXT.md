@@ -117,8 +117,20 @@ The run-scoped, in-process shared vector store that every agent reads and writes
 _Avoid_: vector DB, memory
 
 **Knowledge entry**:
-One stored item in the knowledge store — text plus its embedding and provenance.
+One stored item in the knowledge store — text plus its embedding and provenance (author, source event, kind). One entry per ingested item; never chunked.
 _Avoid_: document, record
+
+**Knowledge kind**:
+What produced a knowledge entry: an ingested Message body, a task-completion result, or a Note. The store's only filter/provenance dimension — there are no freeform tags.
+_Avoid_: type, category, label
+
+**Note**:
+A passive knowledge contribution — an agent recording a fact into the store (via `write_knowledge`) with no mailbox delivery, discoverable later only by search. The passive counterpart to a Message's push.
+_Avoid_: memo, annotation, memory
+
+**Knowledge retrieval**:
+A top-k cosine search of the knowledge store, issued either explicitly by an agent (`search_knowledge`) or automatically by context assembly's retrievals section each turn.
+_Avoid_: query, lookup, recall
 
 **Context assembly**:
 Rebuilding an agent's prompt each turn from token-budgeted, relevance-ranked sections instead of appending to a transcript.
@@ -167,6 +179,10 @@ _Avoid_: simulator, stub, fake
 **Behavior model**:
 The mock's engine for deciding responses. The built-in one procedurally carries any prompt through a decompose → work → converge arc and terminates by construction.
 _Avoid_: script
+
+**Mock embedding**:
+The deterministic, seed-independent vector the mock returns for text at `/v1/embeddings` — a lexical-overlap projection, so text sharing tokens lands near in cosine space. Identical text always yields the identical vector.
+_Avoid_: real embedding, semantic vector
 
 **Scenario**:
 A fixture file that overrides the built-in behavior model with scripted responses for tests.
