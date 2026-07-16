@@ -1,0 +1,26 @@
+[tools]
+rust = "1.94"
+
+[tasks.build]
+description = "Build the whole workspace"
+run = "cargo build --workspace"
+
+[tasks.test]
+description = "Run all tests"
+run = "cargo test --workspace"
+
+[tasks.lint]
+description = "Clippy with warnings denied"
+run = "cargo clippy --workspace --all-targets -- -D warnings"
+
+[tasks.fmt]
+description = "Format the workspace"
+run = "cargo fmt --all"
+
+[tasks."fmt:check"]
+description = "Check formatting without writing"
+run = "cargo fmt --all --check"
+
+[tasks.ci]
+description = "Everything CI would run"
+depends = ["fmt:check", "lint", "test"]
