@@ -118,6 +118,10 @@ _Avoid_: command, suggestion
 Which authority path a Directive takes: `mechanical` (applied directly by the runtime, its emitter verb returning the applied effect) or `judgment` (enqueued to the orchestrator, its emitter verb returning a directive id). The meta-agent emits directives only through tier-typed verbs — never messages or knowledge writes.
 _Avoid_: level, kind, class
 
+**Directive outcome**:
+What becomes of an emitted Directive: a mechanical one is `applied` at emit time; a judgment one stays pending in the orchestrator's never-dropped Directives section until the orchestrator either fulfills it (acting while citing its directive id) or declines it with a reason — both recorded as events the meta-agent reads. There is no silent timeout.
+_Avoid_: directive result, ack, response
+
 ### Knowledge & context
 
 **Knowledge store**:
@@ -161,8 +165,16 @@ A team agent's budget-capped sliding window of its own recent turns' output (act
 _Avoid_: transcript, history, scratchpad
 
 **Run-health line**:
-The compact one-line steering summary (throughput, agent utilization, mailbox pressure) folded into the orchestrator's board-digest section — distinct from the meta-agent's full metrics digest, which is where heavy process metrics are reasoned on.
+The compact one-line steering summary (throughput, agent utilization, mailbox pressure) folded into the orchestrator's board-digest section — the lightest of the Metrics module's three projections, distinct from the meta-agent's full metrics digest, which is where heavy process metrics are reasoned on.
 _Avoid_: metrics section, dashboard
+
+**Metrics**:
+The single runtime-owned accumulator that folds the event log into process measurements — one computation feeding three projections (the orchestrator's run-health line, the meta-agent's metrics digest, and the report's run summary), so a run with no meta-agents still measures itself.
+_Avoid_: telemetry, stats, dashboard
+
+**Metrics digest**:
+The meta-agent's full process view projected from Metrics — throughput, latency, task churn, utilization, mailbox pressure, token spend, faults, message and knowledge volume, stall counters, and directive outcomes — with every time-like value counted in deterministic event/tick units, never wall-clock. The heavy counterpart to the run-health line.
+_Avoid_: metrics section, dashboard, stats
 
 ### Runtime & lifecycle
 
@@ -177,6 +189,10 @@ _Avoid_: step, round
 **Tick**:
 One orchestrator turn, fired when the previous turn is done and there is pending input, unassigned work, or idle agents with open work.
 _Avoid_: cycle, poll, scheduler pass
+
+**Meta cadence**:
+The rule that dispatches a meta-agent's turn: a coalesced count of unobserved events crossing a fixed internal threshold, plus an immediate priority wake on high-signal events (park, repeated release, decline, liveness nudge). Event-driven like every other turn, and control-plane, so it takes no parallel permit.
+_Avoid_: meta poll, monitor interval, meta tick
 
 **Sleep**:
 The state (Asleep) in which the scheduler will not run an agent until an explicit wake. Entered only deliberately and only from Idle — by the sleep verb (the orchestrator on an idle agent, or a team agent on itself) or a mechanical meta-directive. The automatic malformed-fault entry into this same state is Park.
