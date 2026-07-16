@@ -29,6 +29,7 @@ Versions are the exact latest resolutions on 2026-07-16; pin at the minor in `[w
 | `uuid` | 1.24.0 | `serde` | Run/agent/task ids, built from the run RNG (see below) | `ulid` 3.0.0 (time-prefixed → worse for determinism) |
 | `jiff` | 0.2.32 | `serde` | Event-log timestamps (`Timestamp`), behind a `Clock` seam | `chrono` 0.4.45 (incumbent; either works — pick one) |
 | `reqwest` | 0.12 | `rustls-tls`, `json` (`default-features = false`) | HTTP `LlmClient` adapter for `--llm-base-url` — pinned by the workspace-layout resolution ([#10](https://github.com/ericbstie/open-team-ai/issues/10)), not part of the original 2026-07-16 verification pass; resolve the exact patch at implementation | hand-rolled hyper-util client (more code, no payoff) |
+| `base64` | 0.22 | defaults | f32-LE embedding codec in `openteam-wire` (encode on the mock, decode in the client) — the harness requests `encoding_format: "base64"` by default to exercise ADR 0014's committed base64 path — added by the wire-types resolution ([#15](https://github.com/ericbstie/open-team-ai/issues/15)), not part of the original 2026-07-16 verification pass; resolve the exact patch at implementation | hand-rolled base64 (viable but error-prone; the crate is ubiquitous and trivial) |
 | `thiserror` | 2.0.18 | — | Typed errors in lib crates (verbs, board, store) | — |
 | `anyhow` | 1.0.103 | — | Context-chained errors in the bin only | — |
 | `async-trait` | 0.1.89 | — | Dyn-compatible async traits (`LlmClient`, knowledge store) | native AFIT (not dyn-compatible); `dynosaur` 0.3.1 (pre-1.0) |

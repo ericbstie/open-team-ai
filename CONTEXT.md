@@ -235,3 +235,21 @@ _Avoid_: turn number, request id, nonce
 **Wire contract**:
 Everything the harness and the mock must agree on — the OpenAI wire subset, the identity grammar, the auxiliary headers, the seed, and token counting. The mock's only knowledge of the harness is the request it is currently reading.
 _Avoid_: shared types, common code
+
+### Wire & transport
+
+**Wire type**:
+A Rust struct or enum in `openteam-wire` mirroring one shape of the OpenAI wire subset — the chat-completions request/response, the embeddings request/response, the error body — each deriving both `Serialize` and `Deserialize` because the harness and the mock sit on opposite ends of the same type. Request optional params are `Option` + `skip_serializing_if` (omit when absent); response required-but-nullable keys (`content`, `refusal`, `logprobs`) are plain `Option` that serialize as explicit `null`; `arguments` is a JSON `String`; unknown-field posture is asymmetric (embeddings request denies, chat and responses ignore).
+_Avoid_: DTO, model, schema struct
+
+**LLM client**:
+The harness-side transport seam — `LlmClient`, an `#[async_trait]`, `Send + Sync` trait in `openteam-core` — that speaks the wire subset to an endpoint: the in-process mock by default, a real OpenAI-compatible endpoint via `--llm-base-url` (config-only, untested; ADR 0001). Transport-agnostic and shared as one stateless `Arc`; its two adapters are the reqwest HTTP client and an in-memory fake for runtime unit tests.
+_Avoid_: LLM backend, provider, API client
+
+**Agent channel**:
+A cheap per-agent handle (`AgentChannel`) over the shared `LlmClient` transport that owns the agent's monotonic call-sequence counter (an `AtomicU64`, `fetch_add` per completion) and renders its `user` field. Monotonic for the whole run and never reset on respecialization — only the specialty slug in the rendered `user` field changes — so no two of an agent's completions ever collide to one determinism key.
+_Avoid_: per-agent client, connection
+
+**Wire identity**:
+What an `AgentChannel` hands the transport per completion — the rendered `user` field (the ADR 0012 agent-handle grammar) plus the auxiliary `X-OpenTeam-Call-Seq` and `X-OpenTeam-Seed` header values — the whole of what ADR 0008 lets identity ride on. The adapter stamps `user` into the schema-pure body and the two channels into headers; embeddings carry none (mock embeddings are seed-independent).
+_Avoid_: credentials, auth, session
