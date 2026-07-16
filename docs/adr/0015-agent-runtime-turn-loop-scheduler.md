@@ -1,5 +1,7 @@
 # The agent runtime: capped-inner-loop turns, a three-state team-agent lifecycle, and an event-driven scheduler
 
+> **Refined by ADR 0017**: the "malformed turn" definition below ("≥1 tool call, none succeeded / every call a schema error") is sharpened once the tool-outcome envelope exists — a turn is malformed (parks) **only when every call returns `invalid`** (a schema/parse fault); a `rejected` domain refusal (e.g. a lost claim race) is a well-formed call that resets the counter exactly like `ok`. See ADR 0017.
+
 Every agent runs the same turn loop (ADR 0002), and a **turn is a capped inner
 loop**, not a single completion: context is assembled **once** at turn start
 (ADR 0004), then `completion → execute tool calls → feed schema-correct tool

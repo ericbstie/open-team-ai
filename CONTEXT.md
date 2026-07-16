@@ -191,7 +191,7 @@ The automatic entry into Sleep after K = 3 consecutive malformed turns. Emits a 
 _Avoid_: crash, fail, kill
 
 **Malformed turn**:
-A turn that emitted at least one tool call, none of which succeeded (every call a schema-correct error). A turn with zero tool calls is a clean yield, never malformed. Any turn with one or more successful verb executions resets the consecutive-malformed counter to zero.
+A turn that emitted at least one tool call and whose every call returned `invalid` (a schema/parse fault) — none `ok`, none `rejected`. A turn with zero tool calls is a clean yield, never malformed; a turn with one or more `ok` or `rejected` outcomes resets the consecutive-malformed counter to zero (a `rejected` domain refusal is a well-formed call, so it counts as behaving correctly — see Tool outcome).
 _Avoid_: bad turn, error turn
 
 **Liveness nudge**:
