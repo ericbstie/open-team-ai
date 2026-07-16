@@ -209,15 +209,19 @@ _Avoid_: output dir, results
 ### Mock & determinism
 
 **Mock**:
-The in-process OpenAI-schema server that plays the model for every agent — the default and only tested LLM backend in v1.
+The OpenAI-schema server that plays the model for every agent — the default and only tested LLM backend in v1. Served over **real loopback HTTP** (binds `127.0.0.1:0`; the OS-assigned port is read back into `LlmConfig.base_url`), so the client code path is byte-identical to a real endpoint, and reached the same way whether embedded in a run or run standalone (`openteam mock serve`) — both mount the identical `build_router()`. **Stateless per request**: every response is a pure function of the request plus its identity channels (`user`, `X-OpenTeam-Call-Seq`, `X-OpenTeam-Seed`), so it holds no per-run state and concurrent runs are isolated purely by their seed (ADR 0019).
 _Avoid_: simulator, stub, fake
 
 **Behavior model**:
-The mock's engine for deciding responses. The built-in one procedurally carries any prompt through a decompose → work → converge arc and terminates by construction.
+The mock's engine for deciding a chat response, reached through the **synchronous** `BehaviorModel::chat(req, identity) -> ChatDecision` seam. The built-in one procedurally carries any prompt through a decompose → work → converge arc and terminates by construction (#18); a Scenario player is the second adapter (#20), selected when `AppState`'s optional scenario is present. It decides only *what to say* — the mock server owns the schema-valid envelope (ADR 0019).
 _Avoid_: script
 
+**Chat decision**:
+What the behavior seam returns — the assistant `ResponseMessage` (text or `tool_calls`) plus its `FinishReason`, and nothing else. The mock server wraps it into a valid `ChatCompletionResponse`, owning `id` (derived deterministically from `user`+call-seq+seed), `created` (from the injected `Clock`), the `model` echo, `choices[]`, and `usage` (wire free-fns) — so "every response is schema-valid OpenAI" is **structural**: the behavior model never touches the envelope, so it cannot emit an invalid one (ADR 0019).
+_Avoid_: response, completion
+
 **Mock embedding**:
-The deterministic, seed-independent vector the mock returns for text at `/v1/embeddings` — a lexical-overlap projection, so text sharing tokens lands near in cosine space. Identical text always yields the identical vector.
+The deterministic, seed-independent vector the mock returns for text at `/v1/embeddings` — a lexical-overlap projection, so text sharing tokens lands near in cosine space. Identical text always yields the identical vector. Computed directly as a fixed wire function, **bypassing the behavior seam** and any scenario override (ADR 0019).
 _Avoid_: real embedding, semantic vector
 
 **Scenario**:
