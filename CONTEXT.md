@@ -175,3 +175,7 @@ _Avoid_: script, test case
 **Seed**:
 The run-level value from which all mock behavior derives, making responses deterministic per agent and turn.
 _Avoid_: nonce
+
+**Wire contract**:
+Everything the harness and the mock must agree on — the OpenAI wire subset, the identity grammar, the auxiliary headers, the seed, and token counting. The mock's only knowledge of the harness is the request it is currently reading.
+_Avoid_: shared types, common code
