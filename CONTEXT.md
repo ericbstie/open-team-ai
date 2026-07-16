@@ -142,8 +142,12 @@ _Avoid_: memory policy
 
 ### Runtime & lifecycle
 
+**Agent state**:
+A team agent's lifecycle position: Idle (no claimed task), Working (exactly one claimed task), or Asleep (descheduled until an explicit wake). Orthogonal to whether a turn is currently in flight. The orchestrator and meta-agents are control-plane and hold no such state.
+_Avoid_: status, mode
+
 **Turn**:
-One LLM interaction by one agent — assembled context in, response out, tool calls executed. The atomic unit of agent activity.
+One reasoning episode by one agent — context assembled once, then a capped loop of completion → execute tool calls → feed results back — ending when the agent yields (a completion with no tool calls) or the per-turn tool-iteration cap is hit. The atomic unit of scheduling and lifecycle; may span several completions (each its own Call sequence entry).
 _Avoid_: step, round
 
 **Tick**:
@@ -151,16 +155,24 @@ One orchestrator turn, fired when the previous turn is done and there is pending
 _Avoid_: cycle, poll, scheduler pass
 
 **Sleep**:
-The agent state the scheduler will not run until an explicit wake — entered deliberately by verb or directive, or automatically after repeated malformed turns.
-_Avoid_: park, suspend, pause
+The state (Asleep) in which the scheduler will not run an agent until an explicit wake. Entered only deliberately and only from Idle — by the sleep verb (the orchestrator on an idle agent, or a team agent on itself) or a mechanical meta-directive. The automatic malformed-fault entry into this same state is Park.
+_Avoid_: suspend, pause
 
 **Wake**:
-Returning a sleeping agent to schedulability.
+Returning a sleeping or parked agent to schedulability — always explicit (orchestrator verb or mechanical meta-directive), never automatic and never self-issued. Restores the prior state: Working with its still-claimed task, else Idle.
 _Avoid_: resume
 
+**Park**:
+The automatic entry into Sleep after K = 3 consecutive malformed turns. Emits a distinct meta-visible event and preserves any claimed task; recovery is by explicit Wake (or the orchestrator unassigning the task to reallocate). A successful turn resets the consecutive-malformed counter.
+_Avoid_: crash, fail, kill
+
+**Malformed turn**:
+A turn that emitted at least one tool call, none of which succeeded (every call a schema-correct error). A turn with zero tool calls is a clean yield, never malformed. Any turn with one or more successful verb executions resets the consecutive-malformed counter to zero.
+_Avoid_: bad turn, error turn
+
 **Liveness nudge**:
-A coarse quiescence check that fires only when nothing is in flight, all agents are idle, and the board is unfinished. Its firing signals a scheduling bug loudly; it is insurance, not a mechanism.
-_Avoid_: heartbeat, watchdog
+A coarse (~500 ms) watchdog asserting the invariant that a quiescent system has finished the board. Fires only when no turn is in flight, every team agent is Idle or Asleep, the board is unfinished, and the orchestrator has no pending input; it emits a distinct event and forces one orchestrator tick (the deadlock breaker — it never auto-wakes team agents). Insurance, not a mechanism: in correct operation it never fires, so its firing is a scheduling bug surfacing loudly.
+_Avoid_: heartbeat, timer
 
 **Event**:
 An append-only record of something that happened in a run; the event log is what tests, meta-agents, and the report read.
@@ -189,8 +201,12 @@ A fixture file that overrides the built-in behavior model with scripted response
 _Avoid_: script, test case
 
 **Seed**:
-The run-level value from which all mock behavior derives, making responses deterministic per agent and turn.
+The run-level value from which all mock behavior derives, making responses deterministic per agent and call sequence.
 _Avoid_: nonce
+
+**Call sequence**:
+A per-agent monotonic counter incremented on every `/v1/chat/completions` an agent issues, carried in an `X-OpenTeam-*` header. With the `user` field and the seed it forms the mock's determinism key, unique per completion even when one turn spans several completions — so a turn's up-to-eight completions never collide to a single response.
+_Avoid_: turn number, request id, nonce
 
 **Wire contract**:
 Everything the harness and the mock must agree on — the OpenAI wire subset, the identity grammar, the auxiliary headers, the seed, and token counting. The mock's only knowledge of the harness is the request it is currently reading.
