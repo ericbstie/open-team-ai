@@ -58,6 +58,22 @@ _Avoid_: ticket, todo
 The shared registry of tasks and their lifecycle — the orchestrator's steering surface.
 _Avoid_: queue, backlog
 
+**Claim**:
+A team agent taking exclusive ownership of an open task — at most one claimed task per agent, team eligibility checked at claim time, first claim wins.
+_Avoid_: assign, pick up, lock
+
+**Release**:
+A claimant returning its claimed task to open, optionally with a reason. Repeated releases are a meta-agent-visible signal; there is no failed task state.
+_Avoid_: drop, abandon, fail
+
+**Unassign**:
+The orchestrator forcibly returning a claimed task to open — the reallocation and pre-respecialization move.
+_Avoid_: revoke, reclaim
+
+**Board digest**:
+The token-budgeted summary of the task board that context assembly gives an agent each turn — the full board for the orchestrator, a claimed-plus-eligible slice for team agents.
+_Avoid_: board dump, task list
+
 **Coordination verb**:
 A tool exposed to agents that acts on the run's shared state — messages, board, knowledge, agent lifecycle. The only kind of tool in v1.
 _Avoid_: action, command
@@ -67,8 +83,16 @@ The fixed set of coordination verbs a role may call; one registry per role.
 _Avoid_: toolbox, toolkit
 
 **Message**:
-A realtime communication between agents — addressed direct, to a team, or broadcast — delivered between turns and always ingested into the knowledge store.
+A realtime communication between agents — addressed direct, to a team, or broadcast — always ingested into the knowledge store at acceptance, delivered between turns via the recipient's mailbox, and never dropped.
 _Avoid_: chat, notification
+
+**Address**:
+The routing scope of a message: one agent (direct), a team's members at acceptance time, or broadcast to the orchestrator and all team agents — meta-agents observe traffic through events rather than receiving broadcasts.
+_Avoid_: recipient, target
+
+**Mailbox**:
+The per-agent ordered queue of accepted-but-undelivered messages, drained oldest-first into the agent's next turn under a token budget with carryover; unbounded and lossless.
+_Avoid_: inbox, channel, buffer
 
 **Directive**:
 A meta-agent's process-improvement instruction. Mechanical directives are applied directly by the runtime; judgment directives go to the orchestrator, which must act or decline with a logged reason.
