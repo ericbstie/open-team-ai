@@ -133,12 +133,28 @@ A top-k cosine search of the knowledge store, issued either explicitly by an age
 _Avoid_: query, lookup, recall
 
 **Context assembly**:
-Rebuilding an agent's prompt each turn from token-budgeted, relevance-ranked sections instead of appending to a transcript.
+Rebuilding an agent's prompt each turn from token-budgeted, relevance-ranked sections instead of appending to a transcript — every role, team agents included. Emits exactly two messages: a `system` skeleton and a `user` message carrying the sections.
 _Avoid_: context patching, compaction
 
 **Context policy**:
-The per-role rule deciding what context assembly puts into an agent's prompt each turn.
+The per-role value — an ordered list of context sections, each with a token budget, an allocation/degradation priority, and a drop rule — that the single context assembler interprets to build an agent's prompt. Data, not a trait: inspectable, loggable, and testable. One per role (`orchestrator`, `team_agent`, `meta_agent`).
 _Avoid_: memory policy
+
+**Context section**:
+A labeled, individually-budgeted block of assembled context — Goal, Board digest, Knowledge retrievals, Fresh messages, Directives, Claimed task, Recent-activity window — rendered as one `##`-headed markdown block inside the single assembled `user` message. Presentation order is fixed per policy and is distinct from allocation priority.
+_Avoid_: context block, chunk
+
+**Section budget**:
+A context section's token cap plus its allocation/degradation priority. The assembler allocates the assembly pool (context window minus skeleton minus reserved output) across sections in priority order and, on overflow, degrades bottom-up; Goal and Directives are never dropped, and any oldest-first section always delivers at least its single oldest item.
+_Avoid_: token limit, quota
+
+**Recent-activity window**:
+A team agent's budget-capped sliding window of its own recent turns' output (actions and tool results), rendered as text — the only private context bridging its reasoning across turns within one assignment. Oldest-dropped under budget, reset at each assignment boundary, wiped on respecialization. There is no persistent per-agent transcript; durable output lives in the board, messages, and knowledge store.
+_Avoid_: transcript, history, scratchpad
+
+**Run-health line**:
+The compact one-line steering summary (throughput, agent utilization, mailbox pressure) folded into the orchestrator's board-digest section — distinct from the meta-agent's full metrics digest, which is where heavy process metrics are reasoned on.
+_Avoid_: metrics section, dashboard
 
 ### Runtime & lifecycle
 
