@@ -14,14 +14,17 @@ runs offline.
 
 ## Status & spec
 
-The **architecture is fully specified and the build is in progress.** The complete,
-validated spec is: `CONTEXT.md` (glossary), `docs/adr/0001`–`0025` (every decision,
-some with dated "Amended by the #22 dry-run gate" notes that are canonical), and
+The **architecture is fully specified and the build is complete** — all four
+crates are implemented and `mise run ci` is green (fmt check, clippy `-D warnings`,
+the full unit/e2e/contract/pairing suite). The complete, validated spec is:
+`CONTEXT.md` (glossary), `docs/adr/0001`–`0025` (every decision, some with dated
+"Amended by the #22 dry-run gate" notes that are canonical),
+`docs/implementation-pins.md` (code-level details the ADRs left open, pinned so the
+renderer and parser halves stay in lockstep — the ADRs win on any conflict), and
 `docs/prototypes/dry-run-transcript.md` (a hand-traced canonical run that validated
 the whole protocol end-to-end). GitHub issue #2 indexes the map (21/21 tickets
-closed). **`docs/IMPLEMENTATION-PLAN.md` is the crate-by-crate build order** — start
-there. The 4-crate workspace is scaffolded and builds; the crate bodies are being
-filled in bottom-up (wire → core + mock → bin).
+closed). `docs/IMPLEMENTATION-PLAN.md` records the crate-by-crate build order the
+implementation followed (wire → core + mock → bin).
 
 ## Agent skills
 
