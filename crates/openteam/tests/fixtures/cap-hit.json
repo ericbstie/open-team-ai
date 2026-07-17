@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "description": "The orchestrator creates a task every turn, forever; team agents fall through to the built-in arc. Only a cap ends it.",
+  "reproduces": "non-termination / runaway delegation (Anthropic; ADR 0023)",
+  "scripts": [
+    {
+      "agent": "orchestrator",
+      "responses": [],
+      "repeat": [
+        { "tool_calls": [ { "name": "create_task", "arguments": { "title": "More work", "description": "Runaway decomposition." } } ] },
+        "yield"
+      ]
+    },
+    {
+      "agent": "agent-*",
+      "responses": [],
+      "repeat": [ "fallthrough" ]
+    }
+  ]
+}

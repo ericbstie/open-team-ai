@@ -1,0 +1,73 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/openteam-wire",
+    "crates/openteam-core",
+    "crates/openteam-mock",
+    "crates/openteam",
+]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.94"
+license = "MIT"
+repository = "https://github.com/ericbstie/open-team-ai"
+
+[workspace.dependencies]
+# Internal crates
+openteam-wire = { path = "crates/openteam-wire" }
+openteam-core = { path = "crates/openteam-core" }
+openteam-mock = { path = "crates/openteam-mock" }
+
+# Async runtime + HTTP
+tokio = { version = "1.42", features = ["rt-multi-thread", "macros", "sync", "time", "net", "signal"] }
+axum = "0.8"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+
+# CLI
+clap = { version = "4.5", features = ["derive", "env"] }
+url = { version = "2", features = ["serde"] }
+
+# Serde + schema
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+schemars = "1"
+
+# Determinism + ids + time
+rand = "0.10"
+rand_chacha = "0.10"
+uuid = { version = "1", features = ["v7", "serde"] }
+jiff = { version = "0.2", features = ["serde"] }
+
+# Encoding
+base64 = "0.22"
+
+# Errors + tracing + async traits
+thiserror = "2"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+async-trait = "0.1"
+
+# Dev-only
+# Contract-test oracle (ADR 0025): types-only features — no HTTP client pulled in.
+async-openai = { version = "0.41", default-features = false, features = ["chat-completion-types", "embedding-types"] }
+tempfile = "3"
+assert_cmd = "2"
+predicates = "3"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+# Denied in CI via `-D warnings`; these raise the floor in library crates.
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+dbg_macro = "warn"
+todo = "warn"
+print_stdout = "warn"
+print_stderr = "warn"
+
+[profile.release]
+lto = "thin"

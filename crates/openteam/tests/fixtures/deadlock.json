@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "description": "Every team agent self-sleeps from Idle while a task stays Open: quiescent-but-unfinished, so the liveness watchdog must fire.",
+  "reproduces": "quiescent-but-unfinished / the liveness watchdog (ADR 0015/0023)",
+  "scripts": [
+    {
+      "agent": "orchestrator",
+      "responses": [
+        { "tool_calls": [ { "name": "create_task", "arguments": { "title": "Orphaned work", "description": "Everyone sleeps on it." } } ] },
+        "yield"
+      ],
+      "repeat": [ "yield" ]
+    },
+    {
+      "agent": "agent-*",
+      "responses": [
+        { "tool_calls": [ { "name": "sleep", "arguments": {} } ] },
+        "yield"
+      ],
+      "repeat": [ "yield" ]
+    }
+  ]
+}

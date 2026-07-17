@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "description": "The meta proposes reallocating the only task; the orchestrator declines with a reason and otherwise yields; nobody works, so the run ends on a cap after the decline's priority wake.",
+  "reproduces": "the directive decline path + priority wake (ADR 0020/0023)",
+  "scripts": [
+    {
+      "agent": "orchestrator",
+      "responses": [
+        {
+          "tool_calls": [
+            {
+              "name": "create_task",
+              "arguments": {
+                "title": "Fine work",
+                "description": "Allocation is fine."
+              }
+            }
+          ]
+        },
+        "yield"
+      ],
+      "repeat": [
+        {
+          "tool_calls": [
+            {
+              "name": "decline_directive",
+              "arguments": {
+                "directive": 1,
+                "reason": "allocation is fine"
+              }
+            }
+          ]
+        },
+        "yield"
+      ]
+    },
+    {
+      "agent": "meta-1",
+      "responses": [
+        {
+          "tool_calls": [
+            {
+              "name": "propose_reallocate",
+              "arguments": {
+                "task": 1,
+                "reason": "looks slow from here"
+              }
+            }
+          ]
+        },
+        "yield"
+      ],
+      "repeat": [
+        "yield"
+      ]
+    },
+    {
+      "agent": "agent-*",
+      "responses": [],
+      "repeat": [
+        "yield"
+      ]
+    }
+  ]
+}

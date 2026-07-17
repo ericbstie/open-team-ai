@@ -1,0 +1,29 @@
+[package]
+name = "openteam-mock"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "The deterministic OpenAI-schema mock server: real-loopback transport, the ChatDecision behavior seam, the built-in behavior arc, the scenario player, and seed-independent embeddings."
+
+[dependencies]
+openteam-wire = { workspace = true }
+axum = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+# The third-party contract oracle (ADR 0025): mock responses must deserialize
+# into a real OpenAI client's types, never round-trip our own wire types.
+async-openai = { workspace = true }
+reqwest = { workspace = true }
+tokio = { workspace = true, features = ["macros"] }
+
+[lints]
+workspace = true

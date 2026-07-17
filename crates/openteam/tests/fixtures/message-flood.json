@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "description": "The orchestrator steers agent-1 by direct mail; agent-1 answers every steer with a broadcast. Mailboxes build pressure until a cap.",
+  "reproduces": "message flood / information overload (MetaGPT; ADR 0023)",
+  "scripts": [
+    {
+      "agent": "orchestrator",
+      "responses": [
+        {
+          "tool_calls": [
+            {
+              "name": "create_task",
+              "arguments": {
+                "title": "Drowned work",
+                "description": "Lost in the noise."
+              }
+            },
+            {
+              "name": "post_message",
+              "arguments": {
+                "to": "agent-1",
+                "body": "status?"
+              }
+            }
+          ]
+        },
+        "yield"
+      ],
+      "repeat": [
+        {
+          "tool_calls": [
+            {
+              "name": "post_message",
+              "arguments": {
+                "to": "agent-1",
+                "body": "status again?"
+              }
+            }
+          ]
+        },
+        "yield"
+      ]
+    },
+    {
+      "agent": "agent-1",
+      "responses": [],
+      "repeat": [
+        {
+          "tool_calls": [
+            {
+              "name": "post_message",
+              "arguments": {
+                "broadcast": true,
+                "body": "status update: everything is fine, again"
+              }
+            }
+          ]
+        },
+        "yield"
+      ]
+    },
+    {
+      "agent": "agent-2",
+      "responses": [],
+      "repeat": [
+        "yield"
+      ]
+    }
+  ]
+}

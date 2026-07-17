@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "description": "Message batches and knowledge notes under a tiny OPENTEAM_ASSEMBLY_BUDGET pool force deterministic degradation of the retrievals and fresh-messages sections.",
+  "reproduces": "context collapse / token exhaustion (ChatDev, Anthropic; ADR 0023)",
+  "scripts": [
+    {
+      "agent": "orchestrator",
+      "responses": [
+        {
+          "tool_calls": [
+            {
+              "name": "create_task",
+              "arguments": {
+                "title": "Overloaded work",
+                "description": "Context pressure builds around this."
+              }
+            }
+          ]
+        },
+        "yield"
+      ],
+      "repeat": [
+        {
+          "tool_calls": [
+            {
+              "name": "post_message",
+              "arguments": {
+                "to": "agent-1",
+                "body": "first long steering message that must occupy a meaningful slice of a tiny assembly budget"
+              }
+            },
+            {
+              "name": "post_message",
+              "arguments": {
+                "to": "agent-1",
+                "body": "second long steering message stacked behind the first in the same acceptance batch"
+              }
+            },
+            {
+              "name": "post_message",
+              "arguments": {
+                "to": "agent-1",
+                "body": "third long steering message guaranteeing the drained prefix cannot cover the queue"
+              }
+            }
+          ]
+        },
+        "yield"
+      ]
+    },
+    {
+      "agent": "agent-*",
+      "responses": [],
+      "repeat": [
+        {
+          "tool_calls": [
+            {
+              "name": "write_knowledge",
+              "arguments": {
+                "text": "a long note stuffed with enough words that cosine retrieval hits keep competing for a budget that cannot hold them all"
+              }
+            }
+          ]
+        },
+        "yield"
+      ]
+    }
+  ]
+}
