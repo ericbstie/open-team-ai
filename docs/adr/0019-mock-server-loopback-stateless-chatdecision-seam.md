@@ -95,3 +95,9 @@ buys nothing over sync pure computation); wall-clock `created` + a random `id`
 and enforcing tool-message pairing in v1 (validation our own traffic never trips,
 testable only by a contrived negative, and lenient-vs-strict-real is the safe
 direction).
+
+**Amended by ADR 0026 (2026-07-17).** Real loopback now hardens the *default*
+tested path, not merely ADR 0001's escape hatch: `openteam run` hits a real
+OpenAI-compatible endpoint unless `--mock` is given. The mock stays byte-compatible
+with a real endpoint for the `--mock`/test path, and the lenient-mock-vs-strict-real
+faithfulness argument (tool-message pairing, etc.) is unchanged.

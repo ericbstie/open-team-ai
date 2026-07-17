@@ -214,6 +214,36 @@ ADR 0001). There is **no config file** (map Out-of-scope) — flags + env only.
   whole `u64` seconds suffice (revisit if demand appears).
 - **A config file (`openteam.toml`)** — map Out-of-scope; flags + env only in v1.
 
+**Amended by ADR 0026 (2026-07-17).** `run` gains `--mock` (bool; starts the
+built-in mock; `conflicts_with = "llm_base_url"`), `--model <ID>` (`OPENTEAM_MODEL`,
+`Option<String>`), and `--embedding-model <ID>` (`OPENTEAM_EMBEDDING_MODEL`,
+`Option<String>`); `--scenario` now carries `requires = "mock"`. The default
+`base_url` is the constant `https://api.openai.com/v1` (used when neither `--mock`
+nor `--llm-base-url` is given), so the real endpoint is the default and the mock is
+the opt-in. API-key resolution adds a fallback to the conventional `OPENAI_API_KEY`
+after `--llm-api-key`/`OPENTEAM_LLM_API_KEY`; hitting the default OpenAI URL with no
+resolved key fails fast in the validation phase (exit 2, no artifacts, friendly
+message), while a custom `--llm-base-url` with no key is allowed (local servers).
+Model ids are now flags/defaults (real path: `gpt-4o-mini` chat,
+`text-embedding-3-small` embeddings; under `--mock`: both `openteam-mock`) rather
+than the hardcoded `openteam-mock`.
+
+## Amended by base-path endpoints + `--local-embeddings` (2026-07-17)
+
+Building on ADR 0026, two changes let `run` reach endpoints whose OpenAI surface
+is not a bare `/v1/` at the host root — notably Open WebUI, whose chat route is
+`/api/chat/completions` and which exposes no OpenAI `/embeddings`:
+
+- `--llm-base-url` is the full API base *including the path prefix* (a trailing
+  slash is appended if absent), and `ReqwestLlmClient` resolves the relative
+  `chat/completions` / `embeddings` against it. So the mock is addressed as
+  `http://<addr>/v1/`, a standard server as `https://host/v1/`, and Open WebUI as
+  `https://host/api/`. Previously the adapter hardcoded an absolute `/v1/...` path
+  that no base URL could redirect, so a non-`/v1` server returned `405`.
+- `--local-embeddings` (bool) embeds via the in-tree `FeatureHashEmbedder`
+  (ADR 0014) instead of calling `/embeddings`, for endpoints without an OpenAI
+  embeddings route.
+
 ## Amended by the `tui` subcommand (2026-07-17)
 
 The command tree gains a third top-level subcommand, `tui`, alongside `run` and
@@ -227,23 +257,3 @@ terminal via an alternate screen, it runs with the stderr tracing subscriber
 suppressed (as `--quiet` does), and stdout is not a report stream in this mode, so
 the ADR 0022 `stdout == report.md` invariant does not apply to `tui` — the report
 is rendered in-pane and the event log still persists to the run dir as usual.
-
-## Amended by real-endpoint support (2026-07-17)
-
-`run` gains three flags for pointing at a real OpenAI-compatible endpoint (the
-ADR 0001 escape hatch), all with mock-preserving defaults so the offline path is
-untouched:
-
-- `--model` / `--embedding-model` (default `openteam-mock`) — the model names
-  sent in the request bodies; the bin no longer hardcodes them.
-- `--local-embeddings` — embed via the in-tree `FeatureHashEmbedder` (ADR 0014)
-  instead of calling `/embeddings`, for endpoints that expose no OpenAI
-  embeddings route (e.g. Open WebUI).
-
-`--llm-base-url` semantics are widened: it is now the full API base *including
-the path prefix* (a trailing slash is appended if absent), and the client
-resolves `chat/completions` / `embeddings` relative to it. So the in-process mock
-is addressed as `http://<addr>/v1/`, a standard OpenAI-schema server as
-`https://host/v1/`, and Open WebUI as `https://host/api/`. Previously the client
-hardcoded an absolute `/v1/...` path that no base URL could redirect, so a
-non-`/v1` server (like Open WebUI's `/api/chat/completions`) returned `405`.

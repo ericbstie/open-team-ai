@@ -27,6 +27,19 @@ use url::Url;
 
 use cli::{Cli, Command, MockCommand, RunArgs, ServeArgs};
 
+/// The default real endpoint used when neither `--mock` nor `--llm-base-url`
+/// is given (ADR 0026). The reqwest adapter treats the base as a path prefix
+/// (adding a trailing slash if absent), so this `/v1` base resolves the
+/// relative `chat/completions` / `embeddings` endpoints correctly.
+const DEFAULT_OPENAI_BASE_URL: &str = "https://api.openai.com/v1";
+/// Default chat model on the real path (override with `--model` / `OPENTEAM_MODEL`).
+const DEFAULT_MODEL: &str = "gpt-4o-mini";
+/// Default embedding model on the real path (override with `--embedding-model`).
+const DEFAULT_EMBEDDING_MODEL: &str = "text-embedding-3-small";
+/// Under `--mock` the model string is cosmetic (the mock echoes any non-empty
+/// value); keep the pinned `openteam-mock` so mock runs read as before.
+const MOCK_MODEL: &str = "openteam-mock";
+
 fn main() -> ExitCode {
     let cli = Cli::parse();
 
@@ -117,40 +130,88 @@ async fn run_command(args: RunArgs) -> ExitCode {
         None => None,
     };
 
-    // Start the in-process mock unless an external endpoint is configured
-    // (ADR 0001/0019). Real loopback: the client path is byte-identical.
-    let (base_url, mock_handle) = match &args.llm_base_url {
-        Some(url) => (url.clone(), None),
-        None => {
-            let state = match scenario {
-                Some(scenario) => AppState::with_scenario(scenario),
-                None => AppState::builtin(),
-            };
-            match serve(state, 0).await {
-                Ok((addr, handle)) => {
-                    tracing::debug!(%addr, "in-process mock bound");
-                    // The mock serves the OpenAI-schema routes under `/v1/`;
-                    // the base carries that prefix so the client joins
-                    // `chat/completions` / `embeddings` relative to it.
-                    match Url::parse(&format!("http://{addr}/v1/"))
-                        .context("mock address did not form a URL")
-                    {
-                        Ok(url) => (url, Some(handle)),
-                        Err(error) => {
-                            eprintln!("openteam: {error:#}");
-                            return ExitCode::from(1);
-                        }
+    // Resolve the transport target (ADR 0026): a real OpenAI-compatible
+    // endpoint by default, the built-in offline mock only under `--mock`.
+    // Real loopback keeps the reqwest client path byte-identical either way
+    // (ADR 0019).
+    let (base_url, mock_handle) = if args.mock {
+        let state = match scenario {
+            Some(scenario) => AppState::with_scenario(scenario),
+            None => AppState::builtin(),
+        };
+        match serve(state, 0).await {
+            Ok((addr, handle)) => {
+                tracing::debug!(%addr, "in-process mock bound");
+                // The mock serves the OpenAI-schema routes under `/v1/`; the
+                // base carries that prefix so the client joins `chat/completions`
+                // / `embeddings` relative to it (see `ReqwestLlmClient`).
+                match Url::parse(&format!("http://{addr}/v1/"))
+                    .context("mock address did not form a URL")
+                {
+                    Ok(url) => (url, Some(handle)),
+                    Err(error) => {
+                        eprintln!("openteam: {error:#}");
+                        return ExitCode::from(1);
                     }
                 }
-                Err(error) => {
-                    eprintln!("openteam: failed to start the in-process mock: {error}");
-                    return ExitCode::from(1);
-                }
+            }
+            Err(error) => {
+                eprintln!("openteam: failed to start the in-process mock: {error}");
+                return ExitCode::from(1);
             }
         }
+    } else {
+        let url = match &args.llm_base_url {
+            Some(url) => url.clone(),
+            None => match Url::parse(DEFAULT_OPENAI_BASE_URL) {
+                Ok(url) => url,
+                Err(error) => {
+                    eprintln!("openteam: bad default endpoint url: {error}");
+                    return ExitCode::from(1);
+                }
+            },
+        };
+        (url, None)
     };
 
-    let transport = Arc::new(ReqwestLlmClient::new(base_url, args.llm_api_key.clone()));
+    // Bearer token: `--llm-api-key`/`OPENTEAM_LLM_API_KEY` (folded by clap),
+    // falling back to the conventional `OPENAI_API_KEY` (ADR 0026).
+    let api_key = args
+        .llm_api_key
+        .clone()
+        .or_else(|| std::env::var("OPENAI_API_KEY").ok())
+        .filter(|key| !key.is_empty());
+
+    // Fail fast (validation-phase exit 2, no artifacts) when hitting the
+    // default OpenAI endpoint without a key — a plain 401 mid-run is a worse
+    // first-run experience. A custom `--llm-base-url` may need no key (local
+    // servers), so only guard the default.
+    if !args.mock && args.llm_base_url.is_none() && api_key.is_none() {
+        eprintln!(
+            "openteam: no API key for the default OpenAI endpoint. Set OPENAI_API_KEY \
+             (or OPENTEAM_LLM_API_KEY / --llm-api-key), point --llm-base-url at a \
+             compatible endpoint, or pass --mock to use the offline mock."
+        );
+        return ExitCode::from(2);
+    }
+
+    // Model ids: real defaults on the network path, the pinned `openteam-mock`
+    // echo string under `--mock` (both overridable via the flags/env vars).
+    let (default_model, default_embedding) = if args.mock {
+        (MOCK_MODEL, MOCK_MODEL)
+    } else {
+        (DEFAULT_MODEL, DEFAULT_EMBEDDING_MODEL)
+    };
+    let model = args
+        .model
+        .clone()
+        .unwrap_or_else(|| default_model.to_string());
+    let embedding_model = args
+        .embedding_model
+        .clone()
+        .unwrap_or_else(|| default_embedding.to_string());
+
+    let transport = Arc::new(ReqwestLlmClient::new(base_url, api_key));
     let config = RunConfig {
         goal: args.goal.clone(),
         agents: args.agents,
@@ -161,8 +222,8 @@ async fn run_command(args: RunArgs) -> ExitCode {
         max_llm_calls: args.max_llm_calls,
         max_duration: args.max_duration.map(Duration::from_secs),
         max_tool_iters: args.max_tool_iters,
-        model: args.model.clone(),
-        embedding_model: args.embedding_model.clone(),
+        model,
+        embedding_model,
         local_embeddings: args.local_embeddings,
         out_dir: args.out_dir.clone(),
         scenario: args.scenario.as_ref().map(|p| p.display().to_string()),
