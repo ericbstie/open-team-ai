@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "description": "Two agents exchange messages forever; the task is never claimed.",
+  "reproduces": "chat-loop livelock (CAMEL; ADR 0023)",
+  "scripts": [
+    {
+      "agent": "orchestrator",
+      "responses": [
+        { "tool_calls": [ { "name": "create_task", "arguments": { "title": "Ignored work", "description": "Nobody claims this." } } ] },
+        "yield"
+      ],
+      "repeat": [ "yield" ]
+    },
+    {
+      "agent": "agent-1",
+      "responses": [],
+      "repeat": [
+        { "tool_calls": [ { "name": "post_message", "arguments": { "to": "agent-2", "body": "after you" } } ] },
+        "yield"
+      ]
+    },
+    {
+      "agent": "agent-2",
+      "responses": [],
+      "repeat": [
+        { "tool_calls": [ { "name": "post_message", "arguments": { "to": "agent-1", "body": "no, after you" } } ] },
+        "yield"
+      ]
+    }
+  ]
+}

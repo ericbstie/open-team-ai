@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "description": "A claim, one rejected re-claim (well-formed, resets nothing), then three all-invalid turns: parked at K=3 with the claim preserved.",
+  "reproduces": "malformed output -> K=3 park (ADR 0015/0017/0023)",
+  "scripts": [
+    {
+      "agent": "orchestrator",
+      "responses": [
+        { "tool_calls": [ { "name": "create_task", "arguments": { "title": "Doomed work", "description": "Its claimant malfunctions." } } ] },
+        "yield"
+      ],
+      "repeat": [ "yield" ]
+    },
+    {
+      "agent": "agent-1",
+      "responses": [
+        { "tool_calls": [ { "name": "claim_task", "arguments": { "task": 1 } } ] },
+        "yield",
+        { "tool_calls": [ { "name": "claim_task", "arguments": { "task": 1 } } ] },
+        "yield",
+        { "tool_calls": [ { "name": "bogus_verb", "arguments": {} } ] },
+        "yield",
+        { "tool_calls": [ { "name": "bogus_verb", "arguments": { "stray": 1 } } ] },
+        "yield",
+        { "tool_calls": [ { "name": "bogus_verb", "arguments": {} } ] },
+        "yield"
+      ],
+      "repeat": [ "yield" ]
+    }
+  ]
+}

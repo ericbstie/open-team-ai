@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "description": "One agent claims a task then loops work-actions without ever completing.",
+  "reproduces": "stall without progress (Magentic-One; ADR 0023)",
+  "scripts": [
+    {
+      "agent": "orchestrator",
+      "responses": [
+        { "tool_calls": [ { "name": "create_task", "arguments": { "title": "Stalled work", "description": "This task never completes." } } ] },
+        "yield"
+      ],
+      "repeat": [ "yield" ]
+    },
+    {
+      "agent": "agent-*",
+      "responses": [
+        { "tool_calls": [ { "name": "claim_task", "arguments": { "task": 1 } } ] },
+        "yield"
+      ],
+      "repeat": [
+        { "tool_calls": [ { "name": "write_knowledge", "arguments": { "text": "Still working; nothing to complete yet." } } ] },
+        "yield"
+      ]
+    }
+  ]
+}

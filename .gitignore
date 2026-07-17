@@ -1,3 +1,6 @@
 /target
 **/*.rs.bk
 .scratch/
+
+# Run artifacts
+.openteam/

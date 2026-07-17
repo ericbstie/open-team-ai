@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "description": "The meta proposes respecializing the permanently-idle agent-2 (the task is team-tagged to agent-1 only); the orchestrator acts with an in_response_to cite, then finishes.",
+  "reproduces": "the judgment-directive round-trip: issued -> fulfilled (ADR 0020/0023)",
+  "scripts": [
+    {
+      "agent": "orchestrator",
+      "responses": [
+        { "tool_calls": [
+            { "name": "form_team", "arguments": { "team": "t1", "members": ["agent-1"] } },
+            { "name": "create_task", "arguments": { "title": "Solo task", "description": "For agent-1 only.", "team": "t1" } }
+        ] },
+        "yield"
+      ],
+      "repeat": [
+        { "tool_calls": [ { "name": "respecialize", "arguments": { "agent": "agent-2", "specialty": { "name": "doc-reviewer", "description": "Reviews drafted docs.", "focus": "review" }, "in_response_to": 1 } } ] },
+        "yield",
+        { "tool_calls": [ { "name": "finish_run", "arguments": { "report": "# Done\nThe meta round-trip is demonstrated." } } ] },
+        "yield"
+      ]
+    },
+    {
+      "agent": "meta-1",
+      "responses": [
+        { "tool_calls": [ { "name": "propose_respecialize", "arguments": { "agent": "agent-2", "specialty": "doc-reviewer" } } ] },
+        "yield"
+      ],
+      "repeat": [ "yield" ]
+    },
+    {
+      "agent": "agent-*",
+      "responses": [],
+      "repeat": [ "fallthrough" ]
+    }
+  ]
+}

@@ -1566,6 +1566,27 @@ async fn turn_body(shared: Arc<Shared>, agent: AgentId, role: Role) {
                 .unwrap_or(0),
         };
 
+        // The edge-trigger watermark is taken at ASSEMBLY time, not turn
+        // end: an event that lands while this turn is in flight was not in
+        // the assembled view, so it must stay fresh for the next dispatch
+        // decision — otherwise a task completing during the orchestrator's
+        // final yield tick would be swallowed and `finish_run` never fires
+        // (the hang the meta-directive fixture caught).
+        let assembled_at = world.events.len();
+        match role {
+            Role::Orchestrator => world.orchestrator.watermark = assembled_at,
+            Role::MetaAgent => {
+                if let Some(slot) = world.metas.get_mut(&agent) {
+                    slot.watermark = assembled_at;
+                }
+            }
+            Role::TeamAgent => {
+                if let Some(slot) = world.team.get_mut(&agent) {
+                    slot.watermark = assembled_at;
+                }
+            }
+        }
+
         let request = ChatCompletionRequest {
             model: shared.config.model.clone(),
             messages: vec![
@@ -1816,24 +1837,20 @@ async fn turn_body(shared: Arc<Shared>, agent: AgentId, role: Role) {
     shared.notify.notify_one();
 }
 
-/// Clear the in-flight flag, update the watermark, decrement the gauge.
+/// Clear the in-flight flag and decrement the gauge. The watermark is NOT
+/// touched here — it was taken at assembly time, so events that landed
+/// while the turn was in flight stay fresh for the next dispatch decision.
 fn end_turn_bookkeeping(world: &mut World, agent: &AgentId, role: Role) {
-    let events_len = world.events.len();
     match role {
-        Role::Orchestrator => {
-            world.orchestrator.in_flight = false;
-            world.orchestrator.watermark = events_len;
-        }
+        Role::Orchestrator => world.orchestrator.in_flight = false,
         Role::MetaAgent => {
             if let Some(slot) = world.metas.get_mut(agent) {
                 slot.in_flight = false;
-                slot.watermark = events_len;
             }
         }
         Role::TeamAgent => {
             if let Some(slot) = world.team.get_mut(agent) {
                 slot.in_flight = false;
-                slot.watermark = events_len;
             }
         }
     }
