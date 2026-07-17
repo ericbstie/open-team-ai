@@ -21,15 +21,21 @@ The report prints to stdout, tracing to stderr:
 # Design a rate limiter for a public API
 
 ## Completed work
-- Outline the about overview
+- Summarize the public notes
+- Research the rate plan
+- Summarize the design notes
+- Draft the rate overview
 
 ...
 
 ## Run summary
 - Outcome: CleanFinish (exit 0)
-- Agents: 4 team + 1 meta · specialties used: generalist, researcher
-- Tasks: created 1 · completed 1 · cancelled 0
-- Tokens: 7.5k total — orchestrator 2.2k, agent-1 1.6k, ...
+- Duration: 0.20s wall · 12 ticks
+- Agents: 4 team + 1 meta · specialties used: generalist
+- Tasks: created 4 · completed 4 · cancelled 0
+- Effective parallelism: 4 → 3 (meta set_parallelism)
+- Tokens: 20.0k total — orchestrator 5.8k, agent-1 2.6k, ...
+- Meta interventions: issued 2 · fulfilled 1 · declined 1
 ```
 
 Artifacts land in `.openteam/runs/<run-id>/`: `report.md`, `board.json`,
@@ -37,11 +43,11 @@ Artifacts land in `.openteam/runs/<run-id>/`: `report.md`, `board.json`,
 
 ## Reproduce a run
 
-Every run logs its seed to stderr (`run seed: 2300973415086686748`). Feed it
+Every run logs its seed to stderr (`run seed: 16213438880691117477`). Feed it
 back for an identical run:
 
 ```sh
-cargo run -p openteam -- run "Design a rate limiter for a public API" --mock --seed 2300973415086686748
+cargo run -p openteam -- run "Design a rate limiter for a public API" --mock --seed 16213438880691117477
 ```
 
 ## Shape the team
