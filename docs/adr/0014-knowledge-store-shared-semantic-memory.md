@@ -40,3 +40,8 @@ identical-embedder invariant to every call site); chunking (no payoff at
 turn-sized scale); eviction / size caps (unbounded is safe here and drops
 nothing retrievable); seed-dependent embeddings (would make cosine meaningless
 across runs and misrepresent what an embedding endpoint is).
+
+**Clarified by the #22 dry-run gate (2026-07-17).** "MessageId, KnowledgeEntryId, and
+EventId are all monotonic counters off the single serial write path" means **four
+independent, each-contiguous counters** (with `TaskId`), all advanced on the one write
+path — not one shared id space. See ADR 0011's amendment.

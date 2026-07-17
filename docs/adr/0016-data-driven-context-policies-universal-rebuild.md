@@ -46,6 +46,39 @@ Auto-retrieval is pure `VectorStore::search` cosine top-k in v1 (deterministic;
 the mock's lexical embeddings make cosine ≈ overlap); a recency/importance blend
 is future tuning only.
 
+## Pinned section line-grammars (the prompt-legibility contract)
+
+**Pinned by the #22 dry-run gate (2026-07-17)**, closing the "#18 pins them but nobody
+wrote them down" gap (ADR 0021 asserted #18 pins the grammars, #13 renders to them, #23
+tests them; this is where they live). Each parseable section is one `##`-headed block in
+policy order; the stateless mock (ADR 0021) parses **world state** from these grammars but
+never identity (identity is the `user` field + headers, ADR 0008). Line formats:
+
+- **`## Board digest`** — one task per line `- task <id> [<state>] team:<tag|->  "<title>"`,
+  `<state> ∈ Open | Claimed by <agent> | Done | Cancelled`. The orchestrator's digest ends
+  with the folded run-health line, prefixed `run-health:` so it is never mistaken for a
+  task line. Mock reads id, state, claimant, team tag.
+- **`## Claimed task`** (team agent) — `task <id> — "<title>" (team <t>)`; present ⟺
+  Working. Mock reads presence + task id (to key `W_task`).
+- **`## Recent activity`** (team agent) — `- [turn N] <verb>{<args-gist>} -> <ok|rejected|invalid>`,
+  oldest first. Mock counts **work-actions** = lines whose verb ∈ {`write_knowledge`,
+  `post_message`, `search_knowledge`}.
+- **`## Fresh messages`** — `- msg <id> from <sender> (<direct|team:<t>|broadcast>): "<body>"`,
+  oldest first.
+- **`## Directives`** (orchestrator) — `- directive <id> [<tier>, <state>] <kind>{<args>} from <meta-handle>`.
+  **Renders kind + args, not just the id** — the orchestrator arc reads `{agent, specialty}`
+  to act on a `propose_respecialize`.
+- **`## Directive outcomes`** (meta) — `- directive <id> [<tier>] <kind>{<args>} — <pending|fulfilled by <h>|declined by <h>: "<reason>">`;
+  the meta reads it **per tier** for its ≤1-per-tier bound (ADR 0020/0021).
+- **`## Knowledge retrievals`** — `- entry <id> (<kind> by <author>, cos <score>): "<text>"`.
+- **`## Metrics digest`** (meta) — throughput / latency / utilization / mailbox /
+  tokens+faults+directives lines; the **utilization** line renders each agent's **state +
+  specialty** (`- <agent>: <Idle|Working (task N)|Asleep>, <specialty>`) so the arc can
+  find "an Idle generalist." The meta's four context slots are `[Goal, Metrics digest,
+  Directive outcomes, Recent-events window]`.
+
+Worked end-to-end against these grammars in docs/prototypes/dry-run-transcript.md.
+
 **Rejected.** A persistent per-assignment transcript for team agents (hoards
 private state, context-collapses on long tasks, breaks the externalize-to-shared
 -substrate thesis); `ContextPolicy` as a trait with three impls (one real adapter,

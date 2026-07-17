@@ -98,9 +98,12 @@ the scheduler re-dispatches on the next nudge, ADR 0015). **No claimed task, no 
 work → yield.**
 
 **Meta-agent** (phase from metrics digest + directive-outcomes slot). **Directive-
-outcomes shows none issued by me → emit ≤1 seeded directive** (`propose_respecialize`
-on an Idle generalist, or a mechanical `set_parallelism`); **else → yield.** The
-already-issued bound is read statelessly from the outcomes slot. Under `--meta-agents N`
+outcomes shows a tier I have not yet used → emit ≤1 seeded directive of that tier**
+(`propose_respecialize` on an Idle generalist for the judgment tier, or a mechanical
+`set_parallelism`); **once both tiers are used → yield.** The already-issued-**per-tier**
+bound is read statelessly from the outcomes slot (**amended from ≤1-per-run to
+≤1-per-tier by the #22 gate, 2026-07-17** — a single meta thus shows both tiers, max 2
+directives/meta/run; still bounded, still terminating). Under `--meta-agents N`
 each handle keys a distinct stream (ADR 0020) → `N` diverse proposals; scenarios crank
 it further.
 
@@ -154,3 +157,30 @@ trivial one-shot; multi-turn is the default, single-turn a scenario); a
 threshold and loop forever — the OR-degraded inversion is mandatory); and passive
 yield-only meta in the default arc (would hide the signature self-monitoring layer — the
 default must show the bounded propose→fulfill/decline round-trip alive).
+
+## Amended by the #22 dry-run gate (2026-07-17)
+
+Three within-turn arc rules the prototype had to pin to produce a stateless multi-turn
+trace, now canonical:
+
+1. **One verb per turn, then yield.** After the arc's single action of a turn (claim, one
+   work-action, or complete) returns `ok`/`rejected` in the turn-local messages, the next
+   completion **yields** — the general form of the lost-claim "don't hammer" rule above.
+   This produces genuine multi-turn work without looping to `MAX_TOOL_ITERS` and without
+   collapsing into the single-turn claim→work→complete this ADR rejects.
+2. **Count work-actions from the recent-activity window only** (the cross-turn memory),
+   not from turn-local — so each Working turn contributes exactly one work-action,
+   spreading `W_task` work over `W_task` turns and making the degradation-safe completion
+   rule fire statelessly.
+3. **Claim the lowest-id eligible Open task** when several are visible (deterministic
+   tie-break ≈ FIFO).
+
+The **section line-grammars** the mock parses (board digest, claimed task, recent
+activity, fresh messages, directives, directive outcomes, knowledge retrievals, metrics
+digest) are pinned in **ADR 0016** — closing this ADR's "#18 pins them" pointer with the
+actual grammars. Two are load-bearing beyond the minimum stated above: the `## Directives`
+line renders each pending judgment directive's **kind + args** (not just its id, so the
+orchestrator can act on it), and the metrics-digest **utilization** line renders each
+agent's **specialty** (so the meta can target "an Idle generalist"). The meta's four
+context slots are `[Goal, Metrics digest, Directive outcomes, Recent-events window]`.
+Validated end-to-end in docs/prototypes/dry-run-transcript.md.

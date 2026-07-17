@@ -161,3 +161,12 @@ yield) cannot converge, and the run terminates on `--max-ticks` / `--max-duratio
 - **A runtime protocol version marker on the wire** (reconsidered from ADR 0021) — the
   home for any legibility-contract version marker is this file's `version: 1`, off the
   wire, so ADR 0008's schema purity is untouched.
+
+## Clarified by the #22 dry-run gate (2026-07-17)
+
+`TaskId` is one of **four independent contiguous per-run counters** — `EventId` (0-based),
+`TaskId` / `MessageId` / `KnowledgeEntryId` (1-based) — all advanced on the single serial
+write path (ADR 0011's amendment supersedes the "shared
+EventId/MessageId/KnowledgeEntryId allocator" phrasing above; there is no shared counter).
+The predictable-`TaskId` guarantee this ADR relies on now holds for `EventId` too, which
+#23's "the Nth event is X" assertions use.

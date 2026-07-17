@@ -195,3 +195,13 @@ stub report and persisted partial artifacts."
   ordering makes `.openteam/runs/` sort meaninglessly; UUIDv7 sorts chronologically.
 - **A finalize-only (non-streamed) `events.jsonl`** — a `SIGKILL` or cap kill would lose
   the whole log; streaming append+flush makes the log the crash-durable spine.
+
+## Amended by the #22 dry-run gate (2026-07-17)
+
+"`EventId` … the same allocator as `MessageId` and `KnowledgeEntryId`" means **the same
+serial write path**, not a shared counter: `EventId`, `MessageId`, `KnowledgeEntryId`, and
+`TaskId` (ADR 0023) are **four independent monotonic counters**, each contiguous —
+`EventId` 0-based (`run_started` = 0), the others 1-based. Contiguous `EventId`s are what
+make replay and #23's "the Nth event is X" assertions tractable. See ADR 0011's amendment.
+The dry-run transcript (docs/prototypes/dry-run-transcript.md) exercises the full envelope,
+`board.json`, `knowledge.jsonl`, and `report.md`/stdout against this schema.

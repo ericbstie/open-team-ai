@@ -85,7 +85,8 @@ instantiates no meta role — the run loses every directive (parallelism tuning,
 meta sleep/wake, all proposals) but keeps the runtime metrics. `N>1` runs
 redundant observers over the same event stream and the same digest, with no
 observation partitioning or directive dedup in v1 — and this is a feature, not
-waste: each meta-agent has a distinct positional handle (`meta-0`, `meta-1`, …),
+waste: each meta-agent has a distinct positional handle (`meta-1`, `meta-2`, …; 1-based per
+ADR 0012 — **corrected from `meta-0` by the #22 gate, 2026-07-17**),
 so under the identity channels (ADR 0008) the mock keys each on a distinct `user`
 field and returns a different behavior stream, yielding *diverse* independent
 process-improvement proposals that the orchestrator arbitrates (declining
@@ -106,3 +107,10 @@ meta a second orchestrator); auto-correlation or timeout-decline of judgment
 directives (mis-attributes, or silently drops the orchestrator's obligation to
 respond); and observation partitioning / directive dedup across meta-agents (v1
 keeps them as an independent diverse panel).
+
+**Amended by the #22 dry-run gate (2026-07-17).** The built-in meta arc's directive bound
+is **≤1 per tier per run** (not ≤1 total): a single meta-agent emits at most one mechanical
+**and** one judgment directive over the run — read statelessly, per tier, from its
+directive-outcomes slot — so the flagship `--meta-agents 1` run exhibits both tiers.
+`set_parallelism` is itself allocation tuning and belongs in the default demo, not only in
+a scenario. See ADR 0021's amendment; validated in docs/prototypes/dry-run-transcript.md.
