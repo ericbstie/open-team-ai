@@ -241,7 +241,7 @@ _Avoid_: run report, stats block
 ### Mock & determinism
 
 **Mock**:
-The OpenAI-schema server that plays the model for every agent — the default and only tested LLM backend in v1. Served over **real loopback HTTP** (binds `127.0.0.1:0`; the OS-assigned port is read back into `LlmConfig.base_url`), so the client code path is byte-identical to a real endpoint, and reached the same way whether embedded in a run or run standalone (`openteam mock serve`) — both mount the identical `build_router()`. **Stateless per request**: every response is a pure function of the request plus its identity channels (`user`, `X-OpenTeam-Call-Seq`, `X-OpenTeam-Seed`), so it holds no per-run state and concurrent runs are isolated purely by their seed (ADR 0019).
+The OpenAI-schema server that plays the model for every agent — the deterministic test/offline LLM backend, selected via `--mock` (ADR 0026; the default backend is a real OpenAI-compatible endpoint at `https://api.openai.com/v1`, overridable via `--llm-base-url`). Served over **real loopback HTTP** (binds `127.0.0.1:0`; the OS-assigned port is read back into `LlmConfig.base_url`), so the client code path is byte-identical to a real endpoint, and reached the same way whether embedded in a run or run standalone (`openteam mock serve`) — both mount the identical `build_router()`. **Stateless per request**: every response is a pure function of the request plus its identity channels (`user`, `X-OpenTeam-Call-Seq`, `X-OpenTeam-Seed`), so it holds no per-run state and concurrent runs are isolated purely by their seed (ADR 0019).
 _Avoid_: simulator, stub, fake
 
 **Behavior model**:
@@ -295,7 +295,7 @@ A Rust struct or enum in `openteam-wire` mirroring one shape of the OpenAI wire 
 _Avoid_: DTO, model, schema struct
 
 **LLM client**:
-The harness-side transport seam — `LlmClient`, an `#[async_trait]`, `Send + Sync` trait in `openteam-core` — that speaks the wire subset to an endpoint: the in-process mock by default, a real OpenAI-compatible endpoint via `--llm-base-url` (config-only, untested; ADR 0001). Transport-agnostic and shared as one stateless `Arc`; its two adapters are the reqwest HTTP client and an in-memory fake for runtime unit tests.
+The harness-side transport seam — `LlmClient`, an `#[async_trait]`, `Send + Sync` trait in `openteam-core` — that speaks the wire subset to an endpoint: a real OpenAI-compatible endpoint by default (`https://api.openai.com/v1`, overridable via `--llm-base-url`), or the in-process mock under `--mock` (ADR 0026). Transport-agnostic and shared as one stateless `Arc`; its two adapters are the reqwest HTTP client and an in-memory fake for runtime unit tests.
 _Avoid_: LLM backend, provider, API client
 
 **Agent channel**:

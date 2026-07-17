@@ -82,13 +82,19 @@ pub struct RunArgs {
     #[arg(long, default_value_t = 8, value_name = "N")]
     pub max_tool_iters: u32,
 
-    /// External OpenAI-compatible endpoint; if set, the in-process mock is NOT
-    /// started (config-only, untested — ADR 0001).
+    /// Run against the built-in offline mock instead of a real endpoint
+    /// (ADR 0026): deterministic, seedable, no network. Used by the test suite
+    /// and for offline local runs. Conflicts with --llm-base-url.
+    #[arg(long, conflicts_with = "llm_base_url")]
+    pub mock: bool,
+
+    /// External OpenAI-compatible endpoint, overriding the default
+    /// (https://api.openai.com/v1). Conflicts with --mock (ADR 0026).
     #[arg(long, value_name = "URL")]
     pub llm_base_url: Option<Url>,
 
-    /// Bearer token for --llm-base-url. Prefer the env var; a CLI-passed key can
-    /// leak via shell history / `ps`.
+    /// Bearer token for the endpoint; falls back to OPENAI_API_KEY. Prefer an
+    /// env var — a CLI-passed key can leak via shell history / `ps`.
     #[arg(
         long,
         env = "OPENTEAM_LLM_API_KEY",
@@ -97,8 +103,17 @@ pub struct RunArgs {
     )]
     pub llm_api_key: Option<String>,
 
-    /// Scenario fixture overriding the built-in behavior arc (ADR 0023).
-    #[arg(long, value_name = "FILE")]
+    /// Chat-completion model id (default: gpt-4o-mini; openteam-mock under --mock).
+    #[arg(long, env = "OPENTEAM_MODEL", value_name = "ID")]
+    pub model: Option<String>,
+
+    /// Embedding model id (default: text-embedding-3-small; openteam-mock under --mock).
+    #[arg(long, env = "OPENTEAM_EMBEDDING_MODEL", value_name = "ID")]
+    pub embedding_model: Option<String>,
+
+    /// Scenario fixture overriding the built-in behavior arc (ADR 0023). Only
+    /// the mock consumes scenarios, so this requires --mock.
+    #[arg(long, value_name = "FILE", requires = "mock")]
     pub scenario: Option<PathBuf>,
 
     /// Run-artifacts directory (default: .openteam/runs/<uuidv7>/).

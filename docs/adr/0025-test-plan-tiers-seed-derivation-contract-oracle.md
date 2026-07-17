@@ -190,3 +190,10 @@ and localhost round-trips; no external I/O).
   configuration we don't ship. Invariant-only assertions are runtime-agnostic.
 - **A dedicated cross-crate integration test-crate for the pairing test** — ceremony; the
   bin is already the composition root where both crates meet and where e2e lives.
+
+**Amended by ADR 0026 (2026-07-17).** Default `openteam run` now hits the network, so
+the Tier-2 e2e and the legibility-pairing cases pass `--mock` (the shared `drive()`
+helper adds it) to keep every seeded test offline and deterministic. The `async-openai`
+contract oracle stays a `openteam-mock` dev-dep, unchanged. The seed-independence /
+cosine-ranking embedding invariants are now explicitly *mock-path* properties — the real
+embedder returns genuine semantic vectors, so they hold only under `--mock`.

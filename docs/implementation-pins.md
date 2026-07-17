@@ -124,7 +124,12 @@ degradation carries no marker (the mock doesn't need it).
 - Mock chat `id`: `chatcmpl-<seed>-<handle>-<call_seq>` where `<handle>` is the
   agent handle parsed from `user` (the raw `user` string if unparseable,
   `anon` if absent).
-- Default model string: `openteam-mock` (the mock echoes whatever it receives).
+- Default model ids (ADR 0026): the default real path uses `gpt-4o-mini` (chat)
+  and `text-embedding-3-small` (embeddings), overridable via
+  `--model`/`--embedding-model`; under `--mock` both default to `openteam-mock`
+  (the mock echoes whatever non-empty model it receives).
+- Default real base URL: `https://api.openai.com/v1` (used when neither `--mock`
+  nor `--llm-base-url` is given).
 
 ## 5. Internal constants (fixed, not flags)
 

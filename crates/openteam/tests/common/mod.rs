@@ -44,11 +44,14 @@ impl DrivenRun {
 }
 
 /// Run `openteam run` with a tempdir `--out-dir` plus the given extra args.
-/// `--quiet` keeps stdout == report.md; a wall-clock cap guards CI.
+/// `--mock` pins the deterministic offline backend (ADR 0026 — the default
+/// path now targets a real endpoint); `--quiet` keeps stdout == report.md; a
+/// wall-clock cap guards CI.
 pub fn drive(goal: &str, dir: &Path, args: &[&str], envs: &[(&str, &str)]) -> DrivenRun {
     let mut cmd = assert_cmd::Command::cargo_bin("openteam").expect("bin builds");
     cmd.arg("run")
         .arg(goal)
+        .arg("--mock")
         .arg("--out-dir")
         .arg(dir)
         .arg("--quiet")

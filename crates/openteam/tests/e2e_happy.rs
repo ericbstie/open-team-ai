@@ -184,7 +184,7 @@ fn invalid_scenario_exits_2_before_any_run() {
     std::fs::write(&bad, r#"{"version": 99, "scripts": []}"#).unwrap();
     let out = dir.path().join("never-created");
     let mut cmd = assert_cmd::Command::cargo_bin("openteam").unwrap();
-    cmd.args(["run", "goal", "--scenario"])
+    cmd.args(["run", "goal", "--mock", "--scenario"])
         .arg(&bad)
         .arg("--out-dir")
         .arg(&out)
