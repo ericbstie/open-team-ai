@@ -62,7 +62,7 @@ pub struct RunArgs {
     #[arg(long, default_value_t = 1, value_name = "N")]
     pub meta_agents: usize,
 
-    /// Seed for deterministic mock behavior (default: random per run, logged and printed).
+    /// Seed for run determinism (default: random per run, logged and printed).
     #[arg(long, value_name = "U64")]
     pub seed: Option<u64>,
 
@@ -83,8 +83,9 @@ pub struct RunArgs {
     pub max_tool_iters: u32,
 
     /// Run against the built-in offline mock instead of a real endpoint
-    /// (ADR 0026): deterministic, seedable, no network. Used by the test suite
-    /// and for offline local runs. Conflicts with --llm-base-url.
+    /// (ADR 0026): deterministic, seedable, no external network (loopback only).
+    /// Used by the test suite and for offline local runs. Conflicts with
+    /// --llm-base-url.
     #[arg(long, conflicts_with = "llm_base_url")]
     pub mock: bool,
 

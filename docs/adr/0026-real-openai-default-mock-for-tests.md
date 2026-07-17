@@ -17,10 +17,14 @@ a real endpoint adds no new client code (DRY). `async-openai` stays a
 "absence of `--llm-base-url`" to an explicit opt-in:
 
 - `--mock` — run against the built-in deterministic mock (in-process, seeded, no
-  network). **Conflicts with `--llm-base-url`.** This is what the e2e/pairing
-  suites pass and how a user runs fully offline.
+  external network — real loopback HTTP only, ADR 0019). **Conflicts with
+  `--llm-base-url`.** This is what the e2e/pairing suites pass and how a user runs
+  fully offline.
 - `--llm-base-url <URL>` — override the real endpoint (any OpenAI-compatible
-  server: a proxy, a local model server, Azure). Absent ⇒ the OpenAI default.
+  server that exposes the `/v1/...` routes: a proxy, a local model server).
+  Absent ⇒ the OpenAI default. The reqwest adapter joins absolute `/v1/...`
+  paths, so a base carrying its own path prefix (e.g. Azure-style
+  `/openai/deployments/...`) is out of scope here.
 - `--model <ID>` (`OPENTEAM_MODEL`) — chat model; default `gpt-4o-mini` on the
   real path, `openteam-mock` under `--mock`.
 - `--embedding-model <ID>` (`OPENTEAM_EMBEDDING_MODEL`) — embedding model;
