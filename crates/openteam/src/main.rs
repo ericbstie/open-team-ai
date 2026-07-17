@@ -129,7 +129,10 @@ async fn run_command(args: RunArgs) -> ExitCode {
             match serve(state, 0).await {
                 Ok((addr, handle)) => {
                     tracing::debug!(%addr, "in-process mock bound");
-                    match Url::parse(&format!("http://{addr}"))
+                    // The mock serves the OpenAI-schema routes under `/v1/`;
+                    // the base carries that prefix so the client joins
+                    // `chat/completions` / `embeddings` relative to it.
+                    match Url::parse(&format!("http://{addr}/v1/"))
                         .context("mock address did not form a URL")
                     {
                         Ok(url) => (url, Some(handle)),
@@ -158,8 +161,9 @@ async fn run_command(args: RunArgs) -> ExitCode {
         max_llm_calls: args.max_llm_calls,
         max_duration: args.max_duration.map(Duration::from_secs),
         max_tool_iters: args.max_tool_iters,
-        model: "openteam-mock".into(),
-        embedding_model: "openteam-mock".into(),
+        model: args.model.clone(),
+        embedding_model: args.embedding_model.clone(),
+        local_embeddings: args.local_embeddings,
         out_dir: args.out_dir.clone(),
         scenario: args.scenario.as_ref().map(|p| p.display().to_string()),
         // Test-only knob (pins §6): not a CLI flag — ADR 0024's surface is

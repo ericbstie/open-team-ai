@@ -362,7 +362,7 @@ async fn run_session(goal: String, params: RunParams, tx: Sender<Update>) {
         }
     };
 
-    let url = match Url::parse(&format!("http://{addr}")) {
+    let url = match Url::parse(&format!("http://{addr}/v1/")) {
         Ok(url) => url,
         Err(error) => {
             let _ = tx.send(Update::Failed(format!(

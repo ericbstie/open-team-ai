@@ -227,3 +227,23 @@ terminal via an alternate screen, it runs with the stderr tracing subscriber
 suppressed (as `--quiet` does), and stdout is not a report stream in this mode, so
 the ADR 0022 `stdout == report.md` invariant does not apply to `tui` — the report
 is rendered in-pane and the event log still persists to the run dir as usual.
+
+## Amended by real-endpoint support (2026-07-17)
+
+`run` gains three flags for pointing at a real OpenAI-compatible endpoint (the
+ADR 0001 escape hatch), all with mock-preserving defaults so the offline path is
+untouched:
+
+- `--model` / `--embedding-model` (default `openteam-mock`) — the model names
+  sent in the request bodies; the bin no longer hardcodes them.
+- `--local-embeddings` — embed via the in-tree `FeatureHashEmbedder` (ADR 0014)
+  instead of calling `/embeddings`, for endpoints that expose no OpenAI
+  embeddings route (e.g. Open WebUI).
+
+`--llm-base-url` semantics are widened: it is now the full API base *including
+the path prefix* (a trailing slash is appended if absent), and the client
+resolves `chat/completions` / `embeddings` relative to it. So the in-process mock
+is addressed as `http://<addr>/v1/`, a standard OpenAI-schema server as
+`https://host/v1/`, and Open WebUI as `https://host/api/`. Previously the client
+hardcoded an absolute `/v1/...` path that no base URL could redirect, so a
+non-`/v1` server (like Open WebUI's `/api/chat/completions`) returned `405`.

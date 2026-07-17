@@ -20,7 +20,7 @@ use openteam_wire::{
 };
 use url::Url;
 
-use crate::knowledge::{EmbedError, Embedder};
+use crate::knowledge::{EmbedError, Embedder, FeatureHashEmbedder};
 
 /// A transport-layer fault. Carries no reqwest types, so the in-memory fake
 /// adapter satisfies the seam cleanly (ADR 0018).
@@ -77,15 +77,29 @@ pub struct ReqwestLlmClient {
     api_key: Option<String>,
 }
 
+/// Ensure the base URL ends in `/` so relative endpoints join *under* its path
+/// instead of replacing the last segment (`https://host/api` → `https://host/api/`).
+fn with_trailing_slash(mut base_url: Url) -> Url {
+    if !base_url.path().ends_with('/') {
+        let with_slash = format!("{}/", base_url.path());
+        base_url.set_path(&with_slash);
+    }
+    base_url
+}
+
 impl ReqwestLlmClient {
     pub fn new(base_url: Url, api_key: Option<String>) -> Self {
         Self {
             http: reqwest::Client::new(),
-            base_url,
+            base_url: with_trailing_slash(base_url),
             api_key,
         }
     }
 
+    /// Resolve a relative endpoint (`chat/completions`, `embeddings`) against
+    /// the base URL. The base carries the full API path prefix — `…/v1/` for
+    /// an OpenAI-schema server or the in-process mock, `…/api/` for Open WebUI
+    /// — so the same client reaches both without a hardcoded path (ADR 0001).
     fn endpoint(&self, path: &str) -> Result<Url, LlmError> {
         self.base_url
             .join(path)
@@ -145,13 +159,12 @@ impl LlmClient for ReqwestLlmClient {
             (HEADER_CALL_SEQ, id.call_seq.to_string()),
             (HEADER_SEED, id.seed.to_string()),
         ];
-        self.post_json(self.endpoint("/v1/chat/completions")?, &body, &headers)
+        self.post_json(self.endpoint("chat/completions")?, &body, &headers)
             .await
     }
 
     async fn embed(&self, req: &EmbeddingRequest) -> Result<EmbeddingResponse, LlmError> {
-        self.post_json(self.endpoint("/v1/embeddings")?, req, &[])
-            .await
+        self.post_json(self.endpoint("embeddings")?, req, &[]).await
     }
 }
 
@@ -255,6 +268,11 @@ impl std::fmt::Debug for AgentChannel {
 pub struct WireEmbedder {
     transport: Arc<dyn LlmClient>,
     model: String,
+    /// When set, embeddings are computed locally by feature hashing instead of
+    /// over the wire — for endpoints without an OpenAI `/v1/embeddings` route
+    /// (e.g. Open WebUI). The `FeatureHashEmbedder` is offline and seed-free
+    /// (ADR 0014), so the knowledge store still works without a remote model.
+    local: Option<FeatureHashEmbedder>,
 }
 
 impl WireEmbedder {
@@ -262,12 +280,26 @@ impl WireEmbedder {
         Self {
             transport,
             model: model.into(),
+            local: None,
+        }
+    }
+
+    /// A `WireEmbedder` that embeds locally, never calling the transport's
+    /// `/embeddings` endpoint. Used when `--local-embeddings` is set.
+    pub fn local(transport: Arc<dyn LlmClient>, model: impl Into<String>) -> Self {
+        Self {
+            transport,
+            model: model.into(),
+            local: Some(FeatureHashEmbedder::new()),
         }
     }
 }
 
 impl Embedder for WireEmbedder {
     async fn embed(&self, text: &str) -> Result<Vec<f32>, EmbedError> {
+        if let Some(local) = &self.local {
+            return Ok(local.embed_text(text));
+        }
         let request = EmbeddingRequest {
             model: self.model.clone(),
             input: EmbeddingInput::Text(text.to_string()),

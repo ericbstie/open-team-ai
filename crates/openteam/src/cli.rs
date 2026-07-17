@@ -84,8 +84,27 @@ pub struct RunArgs {
     #[arg(long, default_value_t = 8, value_name = "N")]
     pub max_tool_iters: u32,
 
+    /// Chat model name sent to the endpoint (default: the mock's own model).
+    /// Override when pointing at a real endpoint, e.g. `--model gpt-4o`.
+    #[arg(long, default_value = "openteam-mock", value_name = "NAME")]
+    pub model: String,
+
+    /// Embedding model name (default: the mock's own). Unused with
+    /// `--local-embeddings`.
+    #[arg(long, default_value = "openteam-mock", value_name = "NAME")]
+    pub embedding_model: String,
+
+    /// Embed locally by feature hashing instead of calling the endpoint's
+    /// `/embeddings` route — for endpoints without one, e.g. Open WebUI.
+    #[arg(long)]
+    pub local_embeddings: bool,
+
     /// External OpenAI-compatible endpoint; if set, the in-process mock is NOT
-    /// started (config-only, untested — ADR 0001).
+    /// started (config-only, untested — ADR 0001). This is the full API base
+    /// *including the path prefix*, with a trailing slash added if absent:
+    /// `https://api.openai.com/v1/`, or `https://host/api/` for Open WebUI
+    /// (whose chat route is `/api/chat/completions`). Endpoints resolve
+    /// relative to it (`chat/completions`, `embeddings`).
     #[arg(long, value_name = "URL")]
     pub llm_base_url: Option<Url>,
 

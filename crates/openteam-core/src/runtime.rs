@@ -65,6 +65,9 @@ pub struct RunConfig {
     pub max_tool_iters: u32,
     pub model: String,
     pub embedding_model: String,
+    /// Embed locally (feature hashing) instead of calling `/embeddings` — for
+    /// endpoints without an OpenAI embeddings route, e.g. Open WebUI (ADR 0001).
+    pub local_embeddings: bool,
     /// `--out-dir` override; default `.openteam/runs/<run-id>/`.
     pub out_dir: Option<PathBuf>,
     /// The `--scenario` path recorded in `run_started` (ADR 0022).
@@ -88,6 +91,7 @@ impl RunConfig {
             max_tool_iters: 8,
             model: "openteam-mock".into(),
             embedding_model: "openteam-mock".into(),
+            local_embeddings: false,
             out_dir: None,
             scenario: None,
             assembly_budget: None,
@@ -2174,10 +2178,12 @@ pub async fn run(
         config.seed,
     )));
 
-    let store = InMemoryVectorStore::new(WireEmbedder::new(
-        transport.clone(),
-        config.embedding_model.clone(),
-    ));
+    let embedder = if config.local_embeddings {
+        WireEmbedder::local(transport.clone(), config.embedding_model.clone())
+    } else {
+        WireEmbedder::new(transport.clone(), config.embedding_model.clone())
+    };
+    let store = InMemoryVectorStore::new(embedder);
 
     let mut world = World {
         goal: config.goal.clone(),
