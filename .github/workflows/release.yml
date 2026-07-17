@@ -1,16 +1,15 @@
 name: Release
 
-# Publishes a GitHub release for a pushed v* tag. Notes live in
-# .github/release-notes/<tag>.md; --generate-notes fills in if absent.
+# Publishes GitHub releases from versioned notes files: any
+# .github/release-notes/v*.md without a matching release gets one, tagged
+# at the triggering commit. Idempotent — existing releases are left alone.
+# Push-driven because this repo's agent sessions can push commits but not
+# tags, and their tokens cannot dispatch workflows.
 on:
   push:
-    tags: ["v*"]
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: "Existing tag to release (e.g. v0.1.0)"
-        required: true
-        type: string
+    branches: [main]
+    paths: [".github/release-notes/*.md", ".github/workflows/release.yml"]
+  workflow_dispatch: {}
 
 permissions:
   contents: write
@@ -20,26 +19,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Create the GitHub release
+      - name: Create missing releases
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
-          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "release $TAG already exists; nothing to do"
-            exit 0
-          fi
-          args=(--repo "$GITHUB_REPOSITORY" --title "openteam $TAG")
-          # On a tag push the tag is the checked-out ref; on
-          # workflow_dispatch it may not exist yet — gh then creates it
-          # at the dispatched ref's head commit.
-          if ! git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
-            args+=(--target "$GITHUB_SHA")
-          fi
-          notes=".github/release-notes/$TAG.md"
-          if [ -f "$notes" ]; then
-            args+=(--notes-file "$notes")
-          else
-            args+=(--generate-notes)
-          fi
-          gh release create "$TAG" "${args[@]}"
+          for notes in .github/release-notes/v*.md; do
+            [ -e "$notes" ] || continue
+            tag=$(basename "$notes" .md)
+            if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              echo "$tag: release exists"
+              continue
+            fi
+            args=(--repo "$GITHUB_REPOSITORY" --title "openteam $tag" --notes-file "$notes")
+            # The tag is created at this commit unless it already exists.
+            git rev-parse -q --verify "refs/tags/$tag" >/dev/null || args+=(--target "$GITHUB_SHA")
+            gh release create "$tag" "${args[@]}"
+          done
