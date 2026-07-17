@@ -10,7 +10,6 @@ description = "The openteam wire contract: the OpenAI wire subset, identity gram
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
-schemars = { workspace = true }
 base64 = { workspace = true }
 thiserror = { workspace = true }
 
