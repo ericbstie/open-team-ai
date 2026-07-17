@@ -10,7 +10,7 @@ use url::Url;
 #[command(
     name = "openteam",
     version,
-    about = "An offline, deterministic harness for parallelized agentic teams"
+    about = "An LLM harness for parallelized agentic team working"
 )]
 pub struct Cli {
     #[command(subcommand)]

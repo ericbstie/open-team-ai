@@ -274,7 +274,7 @@ pub struct AssembledPrompt {
 /// The static role skeleton (ADR 0012, pins §8) — inert to the mock.
 pub fn skeleton(role: Role, specialty: Option<&SpecialtyProfile>) -> String {
     match role {
-        Role::Orchestrator => "You are the orchestrator of an offline agentic team. You decompose \
+        Role::Orchestrator => "You are the orchestrator of an agentic team. You decompose \
                               the goal into board tasks, form teams, steer via messages and \
                               directives, and alone end the run with finish_run."
             .into(),
