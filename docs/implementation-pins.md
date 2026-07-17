@@ -130,12 +130,35 @@ degradation carries no marker (the mock doesn't need it).
 
 - K = 3 consecutive-malformed park (pinned by ADR 0015).
 - `MAX_TOOL_ITERS` default 8 (`--max-tool-iters`, ADR 0024).
-- Meta coalesced-cadence threshold: **10** unobserved subscribed events.
+- Meta coalesced-cadence threshold: **6** unobserved events not sourced by the
+  observing meta-agent itself (low enough that the flagship demo reliably shows
+  both directive tiers before the run converges).
 - Repeated-release priority-wake threshold: a task's **3rd** release.
 - Liveness watchdog period: **500 ms**.
-- Auto-retrieval (context assembly): cosine **top-3**.
+- Auto-retrieval (context assembly): cosine **top-3**; the query text is the
+  goal plus (for a Working team agent) its claimed task's title; skipped while
+  the store is empty.
 - Zero-tool-call turns neither increment nor reset the consecutive-malformed
   counter (only `ok`/`rejected` reset it; only all-`invalid` turns increment).
+
+### Scheduler edge-trigger reading (core-only)
+
+- The orchestrator tick predicate reads ADR 0007's "pending input" as: events
+  exist beyond the watermark taken at the orchestrator's last turn end that
+  were not sourced by the orchestrator itself, or a pending directive/mailbox
+  item. This is what fires the all-terminal `finish_run` tick (a completed task
+  is pending input); extra ticks that merely yield are bounded because ticks
+  are edge-triggered on the watermark and world events are bounded by the caps.
+  The very first tick fires unconditionally (the goal is pending input).
+- Team-agent idle dispatch uses the same per-agent watermark: an Idle agent is
+  dispatched when eligible Open work or queued mail exists AND events newer
+  than its last turn end exist.
+- A team agent's recent-activity window clears on a successful `claim_task`
+  (the assignment boundary), then records that claim line; it is wiped on
+  respecialization (ADR 0016).
+- A successful `finish_run` short-circuits the inner loop: the turn ends
+  without a further yield completion (`turn_completed` precedes
+  `run_finished`, per transcript events 32–33).
 
 ## 6. Assembly budgets (defaults; test knob)
 
