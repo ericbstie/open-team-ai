@@ -8,8 +8,12 @@
 // The bin owns stdout for the report and stderr for pre-run errors
 // (ADR 0013's lint carve-out for the bin).
 #![allow(clippy::print_stdout, clippy::print_stderr)]
+// Test modules lean on unwrap/expect/panic for terse assertions, matching the
+// library crates' pattern.
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
 mod cli;
+mod tui;
 
 use std::process::ExitCode;
 use std::sync::Arc;
@@ -44,7 +48,11 @@ fn main() -> ExitCode {
             .exit();
     }
 
-    init_tracing(cli.verbose, cli.quiet);
+    // The TUI owns the terminal via an alternate screen; stderr tracing would
+    // paint over its rendering, so it runs without a subscriber, as `--quiet`
+    // does. The in-transcript activity feed surfaces run progress instead.
+    let quiet = cli.quiet || matches!(cli.command, Command::Tui(_));
+    init_tracing(cli.verbose, quiet);
 
     let runtime = match tokio::runtime::Runtime::new() {
         Ok(runtime) => runtime,
@@ -55,6 +63,10 @@ fn main() -> ExitCode {
     };
     match cli.command {
         Command::Run(args) => runtime.block_on(run_command(args)),
+        // The TUI drives a synchronous crossterm loop on the main thread and
+        // spawns harness sessions onto the runtime, so it owns the runtime
+        // rather than blocking on a single future.
+        Command::Tui(args) => tui::run(runtime, args),
         Command::Mock {
             command: MockCommand::Serve(args),
         } => runtime.block_on(serve_command(args)),

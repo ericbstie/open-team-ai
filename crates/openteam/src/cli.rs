@@ -32,6 +32,8 @@ pub struct Cli {
 pub enum Command {
     /// Run the harness against a goal prompt.
     Run(RunArgs),
+    /// Launch the simplified interactive TUI.
+    Tui(TuiArgs),
     /// Mock LLM server tooling.
     Mock {
         #[command(subcommand)]
@@ -104,6 +106,21 @@ pub struct RunArgs {
     /// Run-artifacts directory (default: .openteam/runs/<uuidv7>/).
     #[arg(long, value_name = "DIR")]
     pub out_dir: Option<PathBuf>,
+}
+
+#[derive(Args)]
+pub struct TuiArgs {
+    /// Team-agent pool size (created at run start, never destroyed).
+    #[arg(long, default_value_t = 4, value_name = "N")]
+    pub agents: usize,
+
+    /// Number of meta-agents (0 disables the meta layer; metrics still emitted).
+    #[arg(long, default_value_t = 1, value_name = "N")]
+    pub meta_agents: usize,
+
+    /// Seed for deterministic mock behavior (default: random per run).
+    #[arg(long, value_name = "U64")]
+    pub seed: Option<u64>,
 }
 
 #[derive(Args)]

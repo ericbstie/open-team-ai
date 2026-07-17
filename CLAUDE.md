@@ -9,6 +9,7 @@ runs offline.
 
 - `mise run build` / `mise run test` / `mise run lint` / `mise run fmt` — canonical tasks (see `mise.toml`).
 - `cargo run -p openteam -- run "your prompt"` — run the harness against the mock LLM. Picks a random seed each run (printed as `run seed: <n>` on stderr); pass `--seed <n>` to reproduce. The report prints to stdout (== `report.md`), tracing to stderr; `-v/-vv` raise verbosity, `--quiet` silences tracing. See ADR 0024 for the full flag surface.
+- `cargo run -p openteam -- tui` — launch the simplified, Claude-Code-style TUI: type a goal, watch the run's `events.jsonl` stream in as a live activity feed, and read the report inline (Esc/Ctrl-C quits, Ctrl-L clears, arrows/PgUp-PgDn scroll). Optional `--agents N`, `--meta-agents N`, `--seed U64`. Each submitted goal runs against a fresh in-process mock.
 - `cargo run -p openteam -- mock serve --port 0` — run the standalone OpenAI-schema mock over loopback (`--port 0` = ephemeral).
 - Plain `cargo build --workspace` also works if mise isn't set up.
 
