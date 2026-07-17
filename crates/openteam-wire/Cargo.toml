@@ -1,0 +1,18 @@
+[package]
+name = "openteam-wire"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "The openteam wire contract: the OpenAI wire subset, identity grammar, auxiliary headers, seed, and token counting that the harness and mock must agree on."
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+schemars = { workspace = true }
+base64 = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true
