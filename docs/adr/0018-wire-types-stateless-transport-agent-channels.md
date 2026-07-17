@@ -84,3 +84,10 @@ reqwest-typed error on the trait (leaks the transport into the seam and blocks t
 in-memory fake adapter); and growing `TokenCounter` with `count_message` /
 `count_request` methods (the summation is one fixed policy — it belongs in
 free-fns, not multiplied across the trait's adapters).
+
+**Amended by ADR 0026 (2026-07-17).** `LlmConfig` and the `ReqwestLlmClient`
+reqwest adapter are unchanged, but the bin no longer resolves an absent `base_url`
+to the in-process mock — the default now resolves to the real OpenAI URL
+(`https://api.openai.com/v1`), and `--mock` is what selects the mock. The
+`base_url: None` ⇒ mock doc comment above is stale in spirit: base-url resolution
+(real default vs `--mock`) now lives entirely in the bin.

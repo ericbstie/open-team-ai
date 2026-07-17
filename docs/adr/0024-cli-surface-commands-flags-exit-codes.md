@@ -213,3 +213,17 @@ ADR 0001). There is **no config file** (map Out-of-scope) — flags + env only.
 - **`humantime` for `--max-duration`** — a whole dependency for one safety cap;
   whole `u64` seconds suffice (revisit if demand appears).
 - **A config file (`openteam.toml`)** — map Out-of-scope; flags + env only in v1.
+
+**Amended by ADR 0026 (2026-07-17).** `run` gains `--mock` (bool; starts the
+built-in mock; `conflicts_with = "llm_base_url"`), `--model <ID>` (`OPENTEAM_MODEL`,
+`Option<String>`), and `--embedding-model <ID>` (`OPENTEAM_EMBEDDING_MODEL`,
+`Option<String>`); `--scenario` now carries `requires = "mock"`. The default
+`base_url` is the constant `https://api.openai.com/v1` (used when neither `--mock`
+nor `--llm-base-url` is given), so the real endpoint is the default and the mock is
+the opt-in. API-key resolution adds a fallback to the conventional `OPENAI_API_KEY`
+after `--llm-api-key`/`OPENTEAM_LLM_API_KEY`; hitting the default OpenAI URL with no
+resolved key fails fast in the validation phase (exit 2, no artifacts, friendly
+message), while a custom `--llm-base-url` with no key is allowed (local servers).
+Model ids are now flags/defaults (real path: `gpt-4o-mini` chat,
+`text-embedding-3-small` embeddings; under `--mock`: both `openteam-mock`) rather
+than the hardcoded `openteam-mock`.
