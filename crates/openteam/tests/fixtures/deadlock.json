@@ -1,12 +1,20 @@
 {
   "version": 1,
-  "description": "Every team agent self-sleeps from Idle while a task stays Open: quiescent-but-unfinished, so the liveness watchdog must fire.",
-  "reproduces": "quiescent-but-unfinished / the liveness watchdog (ADR 0015/0023)",
+  "description": "Every team agent self-sleeps from Idle while a task stays Open, and the meta parks a judgment directive in the yield-forever orchestrator's queue: quiescent-but-unfinished, so the liveness watchdog must fire despite the pending directive (#28).",
+  "reproduces": "quiescent-but-unfinished / the liveness watchdog, with a pending judgment directive (ADR 0015/0023, #28)",
   "scripts": [
     {
       "agent": "orchestrator",
       "responses": [
         { "tool_calls": [ { "name": "create_task", "arguments": { "title": "Orphaned work", "description": "Everyone sleeps on it." } } ] },
+        "yield"
+      ],
+      "repeat": [ "yield" ]
+    },
+    {
+      "agent": "meta-1",
+      "responses": [
+        { "tool_calls": [ { "name": "propose_respecialize", "arguments": { "agent": "agent-1", "specialty": "doc-reviewer" } } ] },
         "yield"
       ],
       "repeat": [ "yield" ]

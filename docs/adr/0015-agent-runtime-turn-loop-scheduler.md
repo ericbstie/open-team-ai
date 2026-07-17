@@ -79,3 +79,16 @@ contradicts the board's deliberate-transition contract); tunable K and keying
 determinism on the turn index (both dead against the only tested backend); and a
 level-triggered "dispatch while open work exists" (busy-spins idle agents that
 decline — edge-triggering plus the liveness backstop covers it).
+
+**Amended by issue #28 (2026-07-17).** The watchdog's "the orchestrator has no
+pending input" clause reads as **undelivered mailbox items only** — a pending
+judgment directive no longer holds the predicate false. Directives are
+edge-triggered end to end: the `directive_issued` event beyond the
+orchestrator's watermark dispatches the tick that renders it, and a directive
+the orchestrator has seen and left pending generates no further ticks. Counting
+it as pending input let an orchestrator that kept yielding on one suppress the
+watchdog forever, so a fully-dead run (Open task, every agent Idle/Asleep, no
+turns in flight) degraded to silent cap-riding — and a capless run would hang.
+The forced tick is exactly the directive's resolve-or-decline chance, which is
+this ADR's intent; the `deadlock` fixture now exercises the watchdog with a
+parked judgment directive in place.

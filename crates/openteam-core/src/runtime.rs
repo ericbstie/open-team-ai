@@ -282,7 +282,9 @@ impl World {
         recipients
     }
 
-    /// The quiescent-unfinished liveness predicate (ADR 0015).
+    /// The quiescent-unfinished liveness predicate (ADR 0015, as amended
+    /// by the #28 ruling: a pending judgment directive does not suppress
+    /// the watchdog).
     fn liveness_predicate(&self) -> Option<(u32, u32)> {
         if self.finishing.is_some() || self.forced_tick || self.turns_in_flight > 0 {
             return None;
@@ -316,8 +318,13 @@ impl World {
         if board_open == 0 && claimed_by_asleep == 0 {
             return None;
         }
-        let orchestrator_quiet = self.mailboxes.depth(&AgentId::orchestrator()) == 0
-            && !self.directives.iter().any(Directive::is_pending);
+        // "No pending input" counts undelivered mailbox items (the next
+        // tick drains them) but deliberately NOT a pending judgment
+        // directive (#28, ADR 0015 amendment): an orchestrator that keeps
+        // yielding on one would otherwise suppress the watchdog forever,
+        // hiding a textbook deadlock behind the caps — the forced tick is
+        // exactly the directive's resolve-or-decline chance.
+        let orchestrator_quiet = self.mailboxes.depth(&AgentId::orchestrator()) == 0;
         if !orchestrator_quiet {
             return None;
         }
@@ -333,11 +340,10 @@ impl World {
     fn would_dispatch(&self) -> bool {
         if !self.orchestrator.in_flight {
             let orchestrator = AgentId::orchestrator();
-            let pending_input = self.mailboxes.depth(&orchestrator) > 0
-                || self.directives.iter().any(Directive::is_pending);
+            let queued_mail = self.mailboxes.depth(&orchestrator) > 0;
             if !self.first_tick_fired
                 || self.forced_tick
-                || pending_input
+                || queued_mail
                 || self.has_new_events(self.orchestrator.watermark, &orchestrator)
             {
                 return true;
@@ -1956,12 +1962,18 @@ fn plan_dispatches(world: &mut World) -> Vec<TurnPlan> {
     }
 
     // Orchestrator tick (ADR 0007; the pinned edge-trigger reading).
+    // Pending input is edge-triggered end to end (#28): a queued mailbox
+    // item self-clears on the next tick's drain, and a pending judgment
+    // directive counts through its `directive_issued` event, fresh beyond
+    // the watermark until a tick has rendered it. A directive the
+    // orchestrator has seen and left pending generates no further ticks —
+    // otherwise an orchestrator that keeps yielding on it busy-spins to
+    // the caps; the liveness watchdog's forced tick is the retry path.
     let orchestrator_id = AgentId::orchestrator();
     if !world.orchestrator.in_flight {
-        let pending_input = world.mailboxes.depth(&orchestrator_id) > 0
-            || world.directives.iter().any(Directive::is_pending);
+        let queued_mail = world.mailboxes.depth(&orchestrator_id) > 0;
         let fresh = world.has_new_events(world.orchestrator.watermark, &orchestrator_id);
-        if !world.first_tick_fired || world.forced_tick || pending_input || fresh {
+        if !world.first_tick_fired || world.forced_tick || queued_mail || fresh {
             world.first_tick_fired = true;
             world.forced_tick = false;
             world.orchestrator.in_flight = true;
@@ -3331,5 +3343,81 @@ mod tests {
         assert_eq!(world.mailboxes.depth(&AgentId::team(2)), 1);
         assert_eq!(world.mailboxes.depth(&orchestrator), 0, "sender excluded");
         assert_eq!(world.mailboxes.depth(&meta), 0, "metas get no broadcasts");
+    }
+
+    #[tokio::test]
+    async fn watchdog_predicate_fires_despite_a_stale_pending_directive() {
+        // #28: a pending judgment directive over a dead pool must not
+        // suppress the liveness watchdog — before the fix the predicate's
+        // "orchestrator quiet" clause held it false forever, and the stuck
+        // run rode the caps. The forced tick is exactly the orchestrator's
+        // resolve-or-decline chance.
+        let (shared, registry) = dispatch_world(1).await;
+        let mut world = shared.world.lock().await;
+        let orchestrator = AgentId::orchestrator();
+        let agent = AgentId::team(1);
+        let transport: Arc<dyn LlmClient> = Arc::new(MiniArc::new());
+        let meta = AgentId::meta(1);
+        world.metas.insert(
+            meta.clone(),
+            ControlSlot::new(Arc::new(AgentChannel::new(transport, meta.clone(), 7))),
+        );
+
+        // The deadlock shape: one Open task, the whole pool Asleep, plus a
+        // judgment directive the orchestrator never resolves.
+        registry
+            .dispatch(
+                Role::Orchestrator,
+                &orchestrator,
+                &tool_call(
+                    "create_task",
+                    serde_json::json!({"title": "Orphaned work", "description": "d"}),
+                ),
+                &mut world,
+            )
+            .await;
+        registry
+            .dispatch(
+                Role::TeamAgent,
+                &agent,
+                &tool_call("sleep", serde_json::json!({})),
+                &mut world,
+            )
+            .await;
+        registry
+            .dispatch(
+                Role::MetaAgent,
+                &meta,
+                &tool_call(
+                    "propose_respecialize",
+                    serde_json::json!({"agent": "agent-1", "specialty": "doc-reviewer"}),
+                ),
+                &mut world,
+            )
+            .await;
+        assert!(world.directives.iter().any(Directive::is_pending));
+        world.first_tick_fired = true;
+
+        // The enqueue is still a dispatch edge: `directive_issued` sits
+        // beyond the orchestrator's watermark, so a tick fires to render it.
+        world.orchestrator.watermark = 0;
+        assert!(world.would_dispatch(), "the enqueue edge dispatches a tick");
+
+        // Once a tick has rendered the directive (watermark past its event)
+        // and the meta is caught up, a still-pending directive generates no
+        // further dispatches — and the fire condition holds regardless.
+        world.orchestrator.watermark = world.events.len();
+        if let Some(slot) = world.metas.get_mut(&meta) {
+            slot.unobserved = 0;
+        }
+        assert!(
+            !world.would_dispatch(),
+            "a stale pending directive is not dispatchable input"
+        );
+        assert_eq!(
+            world.liveness_predicate(),
+            Some((1, 0)),
+            "quiescent-unfinished fires despite the pending directive (#28)"
+        );
     }
 }

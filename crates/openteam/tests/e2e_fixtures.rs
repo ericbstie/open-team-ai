@@ -169,8 +169,9 @@ fn malformed_k3_parks_after_three_all_invalid_turns() {
             "1",
             "--scenario",
             &fixture("malformed-k3.json"),
-            // No meta layer: an unscripted arc meta could leave a pending
-            // judgment directive that keeps the orchestrator non-quiet.
+            // No meta layer: this test targets the K=3 park path alone;
+            // the pending-directive/watchdog interaction (#28) is the
+            // deadlock fixture's job.
             "--meta-agents",
             "0",
             // Generous tick headroom: the park must land before any cap;
@@ -342,7 +343,7 @@ fn declined_directive_records_the_reason_and_wakes_the_meta() {
 }
 
 #[test]
-fn deadlock_fires_the_liveness_watchdog() {
+fn deadlock_fires_the_liveness_watchdog_despite_a_pending_directive() {
     let dir = tempfile::tempdir().unwrap();
     let run = drive(
         "goal",
@@ -354,10 +355,14 @@ fn deadlock_fires_the_liveness_watchdog() {
             "2",
             "--scenario",
             &fixture("deadlock.json"),
-            // No meta layer: an unscripted arc meta could leave a pending
-            // judgment directive that keeps the orchestrator non-quiet.
+            // The scripted meta parks a judgment directive in the
+            // yield-forever orchestrator's queue. Before the #28 fix that
+            // pending directive suppressed the watchdog forever (this test
+            // ran `--meta-agents 0` to sidestep it); now a directive the
+            // orchestrator has seen and left pending stops generating
+            // ticks, quiescence is reached, and the watchdog fires.
             "--meta-agents",
-            "0",
+            "1",
             // Tick headroom so the ~500 ms watchdog gets its window; the
             // wall-clock cap terminates the quiescent run.
             "--max-ticks",
@@ -369,9 +374,20 @@ fn deadlock_fires_the_liveness_watchdog() {
     );
     assert_eq!(run.exit_code(), 2, "terminates on a cap");
     let events = run.events();
+    let issued = of_kind(&events, "directive_issued");
+    assert!(
+        issued.iter().any(|e| e["data"]["tier"] == "Judgment"
+            && e["data"]["kind"] == "propose_respecialize"),
+        "the meta's judgment directive was issued"
+    );
+    assert!(
+        of_kind(&events, "directive_fulfilled").is_empty()
+            && of_kind(&events, "directive_declined").is_empty(),
+        "the directive stayed pending for the whole run"
+    );
     assert!(
         !of_kind(&events, "liveness_nudge").is_empty(),
-        "the watchdog fired on quiescent-but-unfinished"
+        "the watchdog fired on quiescent-but-unfinished despite the pending directive (#28)"
     );
     assert_eq!(
         of_kind(&events, "agent_slept").len(),
