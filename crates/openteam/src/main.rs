@@ -8,8 +8,12 @@
 // The bin owns stdout for the report and stderr for pre-run errors
 // (ADR 0013's lint carve-out for the bin).
 #![allow(clippy::print_stdout, clippy::print_stderr)]
+// Test modules lean on unwrap/expect/panic for terse assertions, matching the
+// library crates' pattern.
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
 mod cli;
+mod tui;
 
 use std::process::ExitCode;
 use std::sync::Arc;
@@ -24,8 +28,9 @@ use url::Url;
 use cli::{Cli, Command, MockCommand, RunArgs, ServeArgs};
 
 /// The default real endpoint used when neither `--mock` nor `--llm-base-url`
-/// is given (ADR 0026). The reqwest adapter joins the absolute `/v1/...`
-/// paths, so a host-with-`/v1` base resolves correctly.
+/// is given (ADR 0026). The reqwest adapter treats the base as a path prefix
+/// (adding a trailing slash if absent), so this `/v1` base resolves the
+/// relative `chat/completions` / `embeddings` endpoints correctly.
 const DEFAULT_OPENAI_BASE_URL: &str = "https://api.openai.com/v1";
 /// Default chat model on the real path (override with `--model` / `OPENTEAM_MODEL`).
 const DEFAULT_MODEL: &str = "gpt-4o-mini";
@@ -56,7 +61,11 @@ fn main() -> ExitCode {
             .exit();
     }
 
-    init_tracing(cli.verbose, cli.quiet);
+    // The TUI owns the terminal via an alternate screen; stderr tracing would
+    // paint over its rendering, so it runs without a subscriber, as `--quiet`
+    // does. The in-transcript activity feed surfaces run progress instead.
+    let quiet = cli.quiet || matches!(cli.command, Command::Tui(_));
+    init_tracing(cli.verbose, quiet);
 
     let runtime = match tokio::runtime::Runtime::new() {
         Ok(runtime) => runtime,
@@ -67,6 +76,10 @@ fn main() -> ExitCode {
     };
     match cli.command {
         Command::Run(args) => runtime.block_on(run_command(args)),
+        // The TUI drives a synchronous crossterm loop on the main thread and
+        // spawns harness sessions onto the runtime, so it owns the runtime
+        // rather than blocking on a single future.
+        Command::Tui(args) => tui::run(runtime, args),
         Command::Mock {
             command: MockCommand::Serve(args),
         } => runtime.block_on(serve_command(args)),
@@ -129,7 +142,10 @@ async fn run_command(args: RunArgs) -> ExitCode {
         match serve(state, 0).await {
             Ok((addr, handle)) => {
                 tracing::debug!(%addr, "in-process mock bound");
-                match Url::parse(&format!("http://{addr}"))
+                // The mock serves the OpenAI-schema routes under `/v1/`; the
+                // base carries that prefix so the client joins `chat/completions`
+                // / `embeddings` relative to it (see `ReqwestLlmClient`).
+                match Url::parse(&format!("http://{addr}/v1/"))
                     .context("mock address did not form a URL")
                 {
                     Ok(url) => (url, Some(handle)),
@@ -208,6 +224,7 @@ async fn run_command(args: RunArgs) -> ExitCode {
         max_tool_iters: args.max_tool_iters,
         model,
         embedding_model,
+        local_embeddings: args.local_embeddings,
         out_dir: args.out_dir.clone(),
         scenario: args.scenario.as_ref().map(|p| p.display().to_string()),
         // Test-only knob (pins §6): not a CLI flag — ADR 0024's surface is

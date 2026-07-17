@@ -32,6 +32,8 @@ pub struct Cli {
 pub enum Command {
     /// Run the harness against a goal prompt.
     Run(RunArgs),
+    /// Launch the simplified interactive TUI.
+    Tui(TuiArgs),
     /// Mock LLM server tooling.
     Mock {
         #[command(subcommand)]
@@ -90,7 +92,11 @@ pub struct RunArgs {
     pub mock: bool,
 
     /// External OpenAI-compatible endpoint, overriding the default
-    /// (https://api.openai.com/v1). Conflicts with --mock (ADR 0026).
+    /// (https://api.openai.com/v1). Conflicts with --mock (ADR 0026). Taken as
+    /// the full API base *including the path prefix* (a trailing slash is added
+    /// if absent): `https://host/v1/` for an OpenAI-schema server, or
+    /// `https://host/api/` for Open WebUI (whose chat route is
+    /// `/api/chat/completions`). Relative endpoints resolve against it.
     #[arg(long, value_name = "URL")]
     pub llm_base_url: Option<Url>,
 
@@ -112,6 +118,11 @@ pub struct RunArgs {
     #[arg(long, env = "OPENTEAM_EMBEDDING_MODEL", value_name = "ID")]
     pub embedding_model: Option<String>,
 
+    /// Embed locally by feature hashing instead of calling the endpoint's
+    /// `/embeddings` route — for endpoints without one, e.g. Open WebUI.
+    #[arg(long)]
+    pub local_embeddings: bool,
+
     /// Scenario fixture overriding the built-in behavior arc (ADR 0023). Only
     /// the mock consumes scenarios, so this requires --mock.
     #[arg(long, value_name = "FILE", requires = "mock")]
@@ -120,6 +131,21 @@ pub struct RunArgs {
     /// Run-artifacts directory (default: .openteam/runs/<uuidv7>/).
     #[arg(long, value_name = "DIR")]
     pub out_dir: Option<PathBuf>,
+}
+
+#[derive(Args)]
+pub struct TuiArgs {
+    /// Team-agent pool size (created at run start, never destroyed).
+    #[arg(long, default_value_t = 4, value_name = "N")]
+    pub agents: usize,
+
+    /// Number of meta-agents (0 disables the meta layer; metrics still emitted).
+    #[arg(long, default_value_t = 1, value_name = "N")]
+    pub meta_agents: usize,
+
+    /// Seed for deterministic mock behavior (default: random per run).
+    #[arg(long, value_name = "U64")]
+    pub seed: Option<u64>,
 }
 
 #[derive(Args)]
