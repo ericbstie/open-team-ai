@@ -213,3 +213,17 @@ ADR 0001). There is **no config file** (map Out-of-scope) — flags + env only.
 - **`humantime` for `--max-duration`** — a whole dependency for one safety cap;
   whole `u64` seconds suffice (revisit if demand appears).
 - **A config file (`openteam.toml`)** — map Out-of-scope; flags + env only in v1.
+
+## Amended by the `tui` subcommand (2026-07-17)
+
+The command tree gains a third top-level subcommand, `tui`, alongside `run` and
+the `mock` group: `openteam tui` launches an interactive, full-screen terminal UI
+over the harness — a companion to the one-shot `run`, driving the same
+`openteam_core::run` against a fresh in-process mock from a `ratatui`/crossterm
+loop (see `crates/openteam/src/tui.rs`). `TuiArgs` exposes a deliberately minimal
+subset — `--agents`, `--meta-agents`, `--seed` — and adds no flags to `run`/`mock`,
+so the pinned one-shot surface above is unchanged. Because the TUI owns the
+terminal via an alternate screen, it runs with the stderr tracing subscriber
+suppressed (as `--quiet` does), and stdout is not a report stream in this mode, so
+the ADR 0022 `stdout == report.md` invariant does not apply to `tui` — the report
+is rendered in-pane and the event log still persists to the run dir as usual.

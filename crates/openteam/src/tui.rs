@@ -25,8 +25,7 @@ use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 use ratatui::crossterm::cursor::Show;
 use ratatui::crossterm::event::{
-    self, DisableMouseCapture, EnableMouseCapture, Event as CtEvent, KeyCode, KeyEvent,
-    KeyEventKind, KeyModifiers, MouseEvent, MouseEventKind,
+    self, Event as CtEvent, KeyCode, KeyEvent, KeyEventKind, KeyModifiers,
 };
 use ratatui::crossterm::execute;
 use ratatui::crossterm::terminal::{
@@ -85,6 +84,15 @@ enum Flow {
     Quit,
 }
 
+/// The run knobs carried from `TuiArgs` to each session — a `Copy` bundle so it
+/// rides into the spawned task as one value.
+#[derive(Clone, Copy)]
+struct RunParams {
+    agents: usize,
+    meta_agents: usize,
+    seed: Option<u64>,
+}
+
 /// The whole UI state — owned by the main thread, mutated in place.
 struct App {
     input: String,
@@ -99,13 +107,11 @@ struct App {
     spinner: usize,
     /// Transcript viewport height from the last frame (for page scrolling).
     viewport_lines: usize,
-    agents: usize,
-    meta_agents: usize,
-    seed: Option<u64>,
+    params: RunParams,
 }
 
 impl App {
-    fn new(agents: usize, meta_agents: usize, seed: Option<u64>) -> Self {
+    fn new(params: RunParams) -> Self {
         Self {
             input: String::new(),
             cursor: 0,
@@ -118,9 +124,7 @@ impl App {
             follow: true,
             spinner: 0,
             viewport_lines: 1,
-            agents,
-            meta_agents,
-            seed,
+            params,
         }
     }
 
@@ -223,7 +227,7 @@ impl Drop for TerminalGuard {
     fn drop(&mut self) {
         let _ = disable_raw_mode();
         let mut out = io::stdout();
-        let _ = execute!(out, LeaveAlternateScreen, DisableMouseCapture, Show);
+        let _ = execute!(out, LeaveAlternateScreen, Show);
     }
 }
 
@@ -244,27 +248,29 @@ fn run_ui(runtime: &Runtime, args: TuiArgs) -> anyhow::Result<()> {
     enable_raw_mode()?;
     let _guard = TerminalGuard;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+    // Note: no mouse capture — leaving it off keeps the terminal's native
+    // text selection (so the report stays copy-pasteable); scrolling is on the
+    // keyboard (arrows / PgUp / PgDn).
+    execute!(stdout, EnterAlternateScreen)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal: Terminal<CrosstermBackend<Stdout>> = Terminal::new(backend)?;
 
     let (tx, rx) = mpsc::channel::<Update>();
     let handle = runtime.handle().clone();
-    let mut app = App::new(args.agents, args.meta_agents, args.seed);
+    let mut app = App::new(RunParams {
+        agents: args.agents,
+        meta_agents: args.meta_agents,
+        seed: args.seed,
+    });
 
     loop {
         terminal.draw(|frame| ui(frame, &mut app))?;
 
-        if event::poll(TICK)? {
-            match event::read()? {
-                CtEvent::Key(key) => {
-                    if let Flow::Quit = handle_key(&mut app, key, &handle, &tx) {
-                        break;
-                    }
-                }
-                CtEvent::Mouse(mouse) => handle_mouse(&mut app, mouse),
-                _ => {}
-            }
+        if event::poll(TICK)?
+            && let CtEvent::Key(key) = event::read()?
+            && let Flow::Quit = handle_key(&mut app, key, &handle, &tx)
+        {
+            break;
         }
 
         while let Ok(update) = rx.try_recv() {
@@ -302,14 +308,6 @@ fn handle_key(app: &mut App, key: KeyEvent, handle: &Handle, tx: &Sender<Update>
     Flow::Continue
 }
 
-fn handle_mouse(app: &mut App, mouse: MouseEvent) {
-    match mouse.kind {
-        MouseEventKind::ScrollUp => app.scroll_up(3),
-        MouseEventKind::ScrollDown => app.scroll_down(3),
-        _ => {}
-    }
-}
-
 /// Spawn a harness session for the current input, if idle and non-empty.
 fn submit(app: &mut App, handle: &Handle, tx: &Sender<Update>) {
     if app.is_running() {
@@ -326,8 +324,8 @@ fn submit(app: &mut App, handle: &Handle, tx: &Sender<Update>) {
     app.follow = true;
 
     let tx = tx.clone();
-    let (agents, meta_agents, seed) = (app.agents, app.meta_agents, app.seed);
-    handle.spawn(run_session(goal, agents, meta_agents, seed, tx));
+    let params = app.params;
+    handle.spawn(run_session(goal, params, tx));
 }
 
 /// A unique, freshly-created temp directory for one run's artifacts.
@@ -344,13 +342,7 @@ fn unique_out_dir() -> io::Result<PathBuf> {
 
 /// Run one harness session end to end, forwarding activity and the report
 /// through `tx`. Every failure path reports via [`Update::Failed`] and returns.
-async fn run_session(
-    goal: String,
-    agents: usize,
-    meta_agents: usize,
-    seed: Option<u64>,
-    tx: Sender<Update>,
-) {
+async fn run_session(goal: String, params: RunParams, tx: Sender<Update>) {
     let out_dir = match unique_out_dir() {
         Ok(dir) => dir,
         Err(error) => {
@@ -383,11 +375,11 @@ async fn run_session(
     };
 
     let mut config = RunConfig::new(goal);
-    config.agents = agents;
-    config.meta_agents = meta_agents;
-    config.parallel = agents;
+    config.agents = params.agents;
+    config.meta_agents = params.meta_agents;
+    config.parallel = params.agents;
     config.out_dir = Some(out_dir.clone());
-    if let Some(seed) = seed {
+    if let Some(seed) = params.seed {
         config.seed = seed;
     }
 
@@ -655,14 +647,17 @@ fn wrap(text: &str, width: usize) -> Vec<String> {
                     lines.push(std::mem::take(&mut current));
                 }
                 let mut chunk = String::new();
+                let mut chunk_w = 0usize;
                 for ch in word.chars() {
-                    if chunk.chars().count() == width {
+                    if chunk_w == width {
                         lines.push(std::mem::take(&mut chunk));
+                        chunk_w = 0;
                     }
                     chunk.push(ch);
+                    chunk_w += 1;
                 }
                 current = chunk;
-                current_w = current.chars().count();
+                current_w = chunk_w;
                 continue;
             }
             let sep = usize::from(!current.is_empty());
