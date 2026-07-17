@@ -12,6 +12,17 @@ runs offline.
 - `cargo run -p openteam -- mock serve --port 0` — run the standalone OpenAI-schema mock over loopback (`--port 0` = ephemeral).
 - Plain `cargo build --workspace` also works if mise isn't set up.
 
+## Status & spec
+
+The **architecture is fully specified and the build is in progress.** The complete,
+validated spec is: `CONTEXT.md` (glossary), `docs/adr/0001`–`0025` (every decision,
+some with dated "Amended by the #22 dry-run gate" notes that are canonical), and
+`docs/prototypes/dry-run-transcript.md` (a hand-traced canonical run that validated
+the whole protocol end-to-end). GitHub issue #2 indexes the map (21/21 tickets
+closed). **`docs/IMPLEMENTATION-PLAN.md` is the crate-by-crate build order** — start
+there. The 4-crate workspace is scaffolded and builds; the crate bodies are being
+filled in bottom-up (wire → core + mock → bin).
+
 ## Agent skills
 
 ### Issue tracker
