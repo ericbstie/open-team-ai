@@ -227,3 +227,10 @@ message), while a custom `--llm-base-url` with no key is allowed (local servers)
 Model ids are now flags/defaults (real path: `gpt-4o-mini` chat,
 `text-embedding-3-small` embeddings; under `--mock`: both `openteam-mock`) rather
 than the hardcoded `openteam-mock`.
+
+**Amended by ADR 0027 (2026-07-17).** The command tree gains a third
+subcommand: `openteam serve` (the stream server), with `--dir <runs-root>`
+(default `.openteam/runs`) and `--port` (`0` = ephemeral). The "bare
+`openteam serve`" rejection above concerned naming the *mock's* server `serve`;
+the name was deliberately kept free and is now claimed by the stream server.
+The global `-v/-vv`/`--quiet` tracing dial applies to it like any subcommand.
