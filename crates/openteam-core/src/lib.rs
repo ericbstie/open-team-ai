@@ -13,17 +13,27 @@
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
+mod artifacts;
 mod board;
 mod clock;
+mod context;
 mod directive;
 mod event;
 mod ids;
 mod knowledge;
+mod llm;
 mod message;
 mod metrics;
+mod runtime;
+mod tools;
 
 pub use board::{Board, BoardRejection, MembershipDelta, Task, TaskState, Team};
 pub use clock::{Clock, FrozenClock, SystemClock};
+pub use context::{
+    AssembleView, AssembledPrompt, ContextPolicy, DropRule, SectionKind, SectionSpec,
+    SpecialtyProfile, assemble, claimed_task_line, recent_event_line, retrieval_line, skeleton,
+    window_line,
+};
 pub use directive::{Directive, DirectiveKind, DirectiveState, DirectiveTier};
 pub use event::{
     CapKind, DegradedSection, Event, EventKind, EventSource, RestoredState, RunCaps,
@@ -36,5 +46,8 @@ pub use knowledge::{
     EmbedError, Embedder, FeatureHashEmbedder, InMemoryVectorStore, KnowledgeEntry, KnowledgeError,
     KnowledgeKind, ScoredEntry, VectorStore,
 };
+pub use llm::{AgentChannel, LlmClient, LlmConfig, LlmError, ReqwestLlmClient, WireEmbedder};
 pub use message::{Address, Mailboxes, Message};
 pub use metrics::{Metrics, RunSummary};
+pub use runtime::{AgentState, RunConfig, RunError, RunOutcome, run};
+pub use tools::{ToolOutcome, ToolRegistry};
