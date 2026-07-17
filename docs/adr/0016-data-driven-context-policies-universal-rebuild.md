@@ -87,3 +87,15 @@ metrics section for the orchestrator (a folded one-line run-health summary
 suffices — the full metrics digest is the meta-agent's, and the report is a third
 view); and recency/provenance retrieval re-ranking in v1 (non-deterministic
 tuning with no payoff against lexical mock embeddings).
+
+**Amended by issue #27 (2026-07-17).** The meta's `## Directive outcomes` slot
+joins Goal and Directives in the **never-dropped** set (its drop rule in
+`ContextPolicy::meta_agent()` is now `Never`, not tail-truncation). ADR 0020/0021
+make this slot the meta's stateless **already-issued ≤1-per-tier bound** —
+load-bearing state, the same rationale that made the orchestrator's Directives
+section never-dropped. Under a tiny assembly pool the old tail-truncation could
+shed the meta's own past directives from the rendering, so the stateless arc
+re-derived "this tier is unused" and re-issued a directive every cadence turn,
+bounded only by the run caps. The slot is one line per directive and directives
+are rare (≤2 per meta per run on the built-in arc), so the budget cost is
+negligible; no happy-path behavior changes.

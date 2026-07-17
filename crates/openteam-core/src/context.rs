@@ -75,7 +75,8 @@ impl SectionKind {
 /// How a section sheds content under budget pressure (ADR 0016).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DropRule {
-    /// Goal and Directives are never dropped or truncated.
+    /// Goal, Directives, and the meta's Directive outcomes are never
+    /// dropped or truncated (ADR 0016; outcomes pinned by #27).
     Never,
     /// The board digest's terminal tail shrinks first.
     TerminalTailFirst,
@@ -87,7 +88,7 @@ pub enum DropRule {
     /// A sliding window: oldest-dropped under budget, always ≥1 item
     /// delivered (recent activity).
     OldestDropped,
-    /// Plain tail truncation, always ≥1 line (metrics digest, outcomes).
+    /// Plain tail truncation, always ≥1 line (metrics digest).
     TailTruncate,
 }
 
@@ -174,18 +175,16 @@ impl ContextPolicy {
     }
 
     /// Meta-agent: the four slots — Goal, Metrics digest, Directive
-    /// outcomes, Recent events (ADR 0016 amendment).
+    /// outcomes, Recent events (ADR 0016 amendment). Directive outcomes is
+    /// never dropped (#27): it is the meta's stateless already-issued
+    /// ≤1-per-tier bound (ADR 0020/0021) — load-bearing state, exactly like
+    /// the orchestrator's Directives section.
     pub fn meta_agent() -> Self {
         Self {
             sections: vec![
                 spec(SectionKind::Goal, 200, 0, DropRule::Never),
                 spec(SectionKind::MetricsDigest, 800, 2, DropRule::TailTruncate),
-                spec(
-                    SectionKind::DirectiveOutcomes,
-                    400,
-                    1,
-                    DropRule::TailTruncate,
-                ),
+                spec(SectionKind::DirectiveOutcomes, 400, 1, DropRule::Never),
                 spec(SectionKind::RecentEvents, 400, 3, DropRule::TailTruncate),
             ],
             pool: None,
@@ -466,15 +465,14 @@ fn render_section(
             }
         }
         SectionKind::DirectiveOutcomes => {
-            let mut lines = view.outcome_lines.clone();
-            while lines.len() > 1 && count_lines(&lines, counter) > allowed {
-                lines.pop();
-                dropped += 1;
-            }
-            if lines.is_empty() {
+            // Never dropped (#27): the meta re-derives its ≤1-per-tier
+            // bound from this slot each completion (ADR 0020/0021), so a
+            // truncated tail would make it re-issue directives every
+            // cadence turn. Small by construction — one line per directive.
+            if view.outcome_lines.is_empty() {
                 vec![kind.placeholder().into()]
             } else {
-                lines
+                view.outcome_lines.clone()
             }
         }
         SectionKind::MetricsDigest => {
@@ -677,6 +675,42 @@ mod tests {
         assert!(
             prompt.user.contains("propose_respecialize"),
             "directives survive"
+        );
+    }
+
+    #[test]
+    fn meta_directive_outcomes_never_drop_under_a_tiny_pool() {
+        // #27: the outcomes slot is the meta's stateless ≤1-per-tier bound
+        // (ADR 0020/0021) — truncating it under budget pressure made the
+        // meta re-derive "this tier is unused" and re-issue directives.
+        let mut view = agentless_view();
+        view.metrics_digest = Some(
+            "throughput: 0 task_completed / 40 EventIds · latency: work n/a\n\
+             utilization:\n  - agent-1: Idle, generalist (idle 12)"
+                .into(),
+        );
+        view.outcome_lines = vec![
+            "- directive 1 [mechanical] set_parallelism{target:2} — fulfilled by runtime".into(),
+            "- directive 2 [judgment] propose_respecialize{agent:agent-3, specialty:doc-reviewer} — pending".into(),
+        ];
+        view.recent_event_lines = vec!["- event 7 directive_issued (meta-1)".into()];
+        let mut policy = ContextPolicy::meta_agent();
+        policy.pool = Some(5); // absurdly tiny (the OPENTEAM_ASSEMBLY_BUDGET knob)
+        let prompt = assemble(&policy, Role::MetaAgent, None, &view, &CharCountTokenizer);
+        assert!(
+            prompt.user.contains("set_parallelism"),
+            "mechanical outcome survives"
+        );
+        assert!(
+            prompt.user.contains("propose_respecialize"),
+            "judgment outcome survives"
+        );
+        assert!(
+            !prompt
+                .degraded
+                .iter()
+                .any(|d| d.kind == "directive_outcomes"),
+            "the outcomes slot never records degradation"
         );
     }
 
