@@ -1,0 +1,446 @@
+{
+  "_comment": "Test fixture: the three tool registries of dry-run-transcript §2 with the pins-§1 arg shapes. Team 7, orchestrator 14, meta 6. Shared by the unit sweep and the wire contract tests via include_str!.",
+  "team": [
+    {
+      "type": "function",
+      "function": {
+        "name": "claim_task",
+        "description": "Take exclusive ownership of an Open task your team is eligible for. First claim wins; a lost race returns a rejected outcome.",
+        "parameters": {
+          "type": "object",
+          "properties": { "task": { "type": "integer", "description": "TaskId to claim." } },
+          "required": ["task"],
+          "additionalProperties": false
+        },
+        "strict": false
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "complete_task",
+        "description": "Mark your claimed task Done and record its result into the knowledge store.",
+        "parameters": {
+          "type": "object",
+          "properties": { "result": { "type": "string" } },
+          "required": ["result"],
+          "additionalProperties": false
+        },
+        "strict": false
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "release_task",
+        "description": "Return your claimed task to Open, optionally with a reason.",
+        "parameters": {
+          "type": "object",
+          "properties": { "reason": { "type": "string" } },
+          "required": [],
+          "additionalProperties": false
+        },
+        "strict": false
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "post_message",
+        "description": "Send a message to one agent (to), a team (team), or everyone (broadcast:true). Exactly one address.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "to": { "type": "string" },
+            "team": { "type": "string" },
+            "broadcast": { "type": "boolean" },
+            "body": { "type": "string" }
+          },
+          "required": ["body"],
+          "additionalProperties": false
+        },
+        "strict": false
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "write_knowledge",
+        "description": "Record a Note into the knowledge store. No mailbox delivery.",
+        "parameters": {
+          "type": "object",
+          "properties": { "text": { "type": "string" } },
+          "required": ["text"],
+          "additionalProperties": false
+        },
+        "strict": false
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "search_knowledge",
+        "description": "Top-k cosine search of the knowledge store.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": { "type": "string" },
+            "k": { "type": "integer" }
+          },
+          "required": ["query"],
+          "additionalProperties": false
+        },
+        "strict": false
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "sleep",
+        "description": "Deschedule yourself until an explicit wake. Legal only from Idle.",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        },
+        "strict": false
+      }
+    }
+  ],
+  "orchestrator": [
+    {
+      "type": "function",
+      "function": {
+        "name": "create_task",
+        "description": "Author a new Open task on the board, optionally tagged to a team for claim-eligibility.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "title": { "type": "string" },
+            "description": { "type": "string" },
+            "team": { "type": ["string", "null"], "description": "TeamId tag, or null for untagged." }
+          },
+          "required": ["title", "description"],
+          "additionalProperties": false
+        },
+        "strict": false
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "cancel_task",
+        "description": "Cancel an Open task with a reason.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "task": { "type": "integer" },
+            "reason": { "type": "string" }
+          },
+          "required": ["task", "reason"],
+          "additionalProperties": false
+        },
+        "strict": false
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "unassign_task",
+        "description": "Forcibly return a claimed task to Open. Cite a directive with in_response_to to fulfill it.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "task": { "type": "integer" },
+            "reason": { "type": ["string", "null"] },
+            "in_response_to": { "type": ["integer", "null"] }
+          },
+          "required": ["task"],
+          "additionalProperties": false
+        },
+        "strict": false
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "form_team",
+        "description": "Form a team over the named agents: a message scope plus claim-eligibility scope.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "team": { "type": "string" },
+            "members": { "type": "array", "items": { "type": "string" } }
+          },
+          "required": ["team", "members"],
+          "additionalProperties": false
+        },
+        "strict": false
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "dissolve_team",
+        "description": "Dissolve a team with no live tasks.",
+        "parameters": {
+          "type": "object",
+          "properties": { "team": { "type": "string" } },
+          "required": ["team"],
+          "additionalProperties": false
+        },
+        "strict": false
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "set_team_members",
+        "description": "Replace a team's membership. Cite a directive with in_response_to to fulfill it.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "team": { "type": "string" },
+            "members": { "type": "array", "items": { "type": "string" } },
+            "in_response_to": { "type": ["integer", "null"] }
+          },
+          "required": ["team", "members"],
+          "additionalProperties": false
+        },
+        "strict": false
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "respecialize",
+        "description": "Swap an Idle agent's specialty and system prompt, wiping its recent-activity window; identity preserved. Cite a directive with in_response_to to fulfill it.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "agent": { "type": "string" },
+            "specialty": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string", "description": "Slug." },
+                "description": { "type": "string" },
+                "focus": { "type": "string" }
+              },
+              "required": ["name", "description", "focus"],
+              "additionalProperties": false
+            },
+            "in_response_to": { "type": ["integer", "null"], "description": "DirectiveId being fulfilled." }
+          },
+          "required": ["agent", "specialty"],
+          "additionalProperties": false
+        },
+        "strict": false
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "sleep_agent",
+        "description": "Put an Idle agent to sleep.",
+        "parameters": {
+          "type": "object",
+          "properties": { "agent": { "type": "string" } },
+          "required": ["agent"],
+          "additionalProperties": false
+        },
+        "strict": false
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "wake_agent",
+        "description": "Wake a sleeping or parked agent.",
+        "parameters": {
+          "type": "object",
+          "properties": { "agent": { "type": "string" } },
+          "required": ["agent"],
+          "additionalProperties": false
+        },
+        "strict": false
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "decline_directive",
+        "description": "Decline a pending judgment directive with a logged reason.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "directive": { "type": "integer" },
+            "reason": { "type": "string" }
+          },
+          "required": ["directive", "reason"],
+          "additionalProperties": false
+        },
+        "strict": false
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "post_message",
+        "description": "Send a message to one agent (to), a team (team), or everyone (broadcast:true). Exactly one address.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "to": { "type": "string" },
+            "team": { "type": "string" },
+            "broadcast": { "type": "boolean" },
+            "body": { "type": "string" }
+          },
+          "required": ["body"],
+          "additionalProperties": false
+        },
+        "strict": false
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "write_knowledge",
+        "description": "Record a Note into the knowledge store. No mailbox delivery.",
+        "parameters": {
+          "type": "object",
+          "properties": { "text": { "type": "string" } },
+          "required": ["text"],
+          "additionalProperties": false
+        },
+        "strict": false
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "search_knowledge",
+        "description": "Top-k cosine search of the knowledge store.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": { "type": "string" },
+            "k": { "type": "integer" }
+          },
+          "required": ["query"],
+          "additionalProperties": false
+        },
+        "strict": false
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "finish_run",
+        "description": "End the run. Rejected (enumerating blockers) if any task is Open or Claimed.",
+        "parameters": {
+          "type": "object",
+          "properties": { "report": { "type": "string" } },
+          "required": ["report"],
+          "additionalProperties": false
+        },
+        "strict": false
+      }
+    }
+  ],
+  "meta": [
+    {
+      "type": "function",
+      "function": {
+        "name": "set_parallelism",
+        "description": "Mechanical directive: retune the effective team-agent permit count within [1, --parallel]. Applied by the runtime.",
+        "parameters": {
+          "type": "object",
+          "properties": { "target": { "type": "integer" } },
+          "required": ["target"],
+          "additionalProperties": false
+        },
+        "strict": false
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "sleep_agent",
+        "description": "Mechanical directive: put an Idle agent to sleep.",
+        "parameters": {
+          "type": "object",
+          "properties": { "agent": { "type": "string" } },
+          "required": ["agent"],
+          "additionalProperties": false
+        },
+        "strict": false
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "wake_agent",
+        "description": "Mechanical directive: wake a sleeping or parked agent.",
+        "parameters": {
+          "type": "object",
+          "properties": { "agent": { "type": "string" } },
+          "required": ["agent"],
+          "additionalProperties": false
+        },
+        "strict": false
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "propose_respecialize",
+        "description": "Judgment directive: propose the orchestrator respecialize an agent. Returns a directive id.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "agent": { "type": "string" },
+            "specialty": { "type": "string", "description": "Proposed slug/hint; the orchestrator authors the full 3-field specialty." }
+          },
+          "required": ["agent", "specialty"],
+          "additionalProperties": false
+        },
+        "strict": false
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "propose_reallocate",
+        "description": "Judgment directive: propose the orchestrator move an existing task.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "task": { "type": "integer" },
+            "reason": { "type": "string" }
+          },
+          "required": ["task", "reason"],
+          "additionalProperties": false
+        },
+        "strict": false
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "propose_rebalance",
+        "description": "Judgment directive: propose the orchestrator rebalance a team's membership.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "team": { "type": "string" },
+            "members": { "type": "array", "items": { "type": "string" } }
+          },
+          "required": ["team", "members"],
+          "additionalProperties": false
+        },
+        "strict": false
+      }
+    }
+  ]
+}
