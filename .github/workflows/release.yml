@@ -1,0 +1,39 @@
+name: Release
+
+# Publishes a GitHub release for a pushed v* tag. Notes live in
+# .github/release-notes/<tag>.md; --generate-notes fills in if absent.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to release (e.g. v0.1.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "release $TAG already exists; nothing to do"
+            exit 0
+          fi
+          notes=".github/release-notes/$TAG.md"
+          if [ -f "$notes" ]; then
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --title "openteam $TAG" --notes-file "$notes" --verify-tag
+          else
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --title "openteam $TAG" --generate-notes --verify-tag
+          fi
