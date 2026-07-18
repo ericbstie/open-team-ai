@@ -41,6 +41,12 @@ The report prints to stdout, tracing to stderr:
 Artifacts land in `.openteam/runs/<run-id>/`: `report.md`, `board.json`,
 `events.jsonl`, `knowledge.jsonl`.
 
+Or watch a run unfold live in the interactive TUI (offline, in-process mock):
+
+```sh
+cargo run -p openteam -- tui
+```
+
 ## Reproduce a run
 
 Every run logs its seed to stderr (`run seed: 16213438880691117477`). Feed it
@@ -56,8 +62,14 @@ cargo run -p openteam -- run "Design a rate limiter for a public API" --mock --s
 cargo run -p openteam -- run "..." --agents 8 --parallel 4 --model gpt-4o --max-llm-calls 200
 ```
 
+Any OpenAI-compatible endpoint works — e.g. Open WebUI:
+
+```sh
+cargo run -p openteam -- run "..." --llm-base-url https://host/api/ --local-embeddings
+```
+
 `cargo run -p openteam -- run --help` lists the rest: caps, meta-agents,
-other OpenAI-compatible endpoints (`--llm-base-url`), scenario fixtures.
+scenario fixtures.
 
 ## Standalone mock server
 
