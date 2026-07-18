@@ -74,6 +74,15 @@ pub struct RunConfig {
     pub scenario: Option<String>,
     /// The `OPENTEAM_ASSEMBLY_BUDGET` test knob (pins §6).
     pub assembly_budget: Option<usize>,
+    /// Serialize the reactor to at most one in-flight turn, so the event
+    /// order (and therefore the whole run) is a pure function of the seed and
+    /// goal — byte-identical across invocations. Set by `--mock`, where
+    /// reproducibility is the point; the real path leaves it off to keep
+    /// `--parallel`'s completion overlap (pins §5, determinism note). The
+    /// deterministic mock responses are already pure functions of their
+    /// request (ADR 0021); this removes the only remaining nondeterminism —
+    /// the order concurrent turns win the single write-path lock (ADR 0011).
+    pub serial_dispatch: bool,
 }
 
 impl RunConfig {
@@ -95,6 +104,7 @@ impl RunConfig {
             out_dir: None,
             scenario: None,
             assembly_budget: None,
+            serial_dispatch: false,
         }
     }
 }
@@ -1952,7 +1962,10 @@ struct TurnPlan {
     permit: Option<OwnedSemaphorePermit>,
 }
 
-/// One dispatch evaluation under the lock (edge-triggered, pins §5).
+/// One dispatch evaluation under the lock (edge-triggered, pins §5). The plan
+/// order is fixed — orchestrator, then metas and team agents in `BTreeMap`
+/// (handle) order — so under `serial_dispatch` the reactor drives the batch to
+/// completion in that order (see [`scheduler`]).
 fn plan_dispatches(world: &mut World) -> Vec<TurnPlan> {
     let mut plans = Vec::new();
     if world.finishing.is_some() {
@@ -2056,7 +2069,17 @@ fn plan_dispatches(world: &mut World) -> Vec<TurnPlan> {
 
 /// The event-driven reactor: on each nudge, re-evaluate dispatch; ends when
 /// a termination path has been taken and all turns settled (ADR 0007/0015).
+///
+/// Under `serial_dispatch` (the `--mock` reproducibility mode) the planned
+/// batch is driven to completion **in plan order, one turn in flight at a
+/// time** — the LLM-call overlap `--parallel` buys is traded for a write-path
+/// commit order that is a pure function of seed + goal, so the run is
+/// byte-identical across invocations (pins §5). `--parallel` still shapes the
+/// run: it caps how many team agents a single planning pass admits, so work
+/// still spreads across the pool. Off (the real path), the batch is spawned
+/// concurrently as before.
 async fn scheduler(shared: Arc<Shared>) {
+    let serial = shared.config.serial_dispatch;
     loop {
         let plans = {
             let mut world = shared.world.lock().await;
@@ -2075,11 +2098,24 @@ async fn scheduler(shared: Arc<Shared>) {
                 plan_dispatches(&mut world)
             }
         };
-        for plan in plans {
-            let shared = shared.clone();
-            tokio::spawn(run_turn(shared, plan.agent, plan.role, plan.permit));
+        if serial {
+            let dispatched = !plans.is_empty();
+            for plan in plans {
+                run_turn(shared.clone(), plan.agent, plan.role, plan.permit).await;
+            }
+            // A non-empty batch changed the world — re-plan at once. An empty
+            // pass has nothing to do but await an external nudge (a watchdog
+            // forced tick or a duration cap).
+            if !dispatched {
+                shared.notify.notified().await;
+            }
+        } else {
+            for plan in plans {
+                let shared = shared.clone();
+                tokio::spawn(run_turn(shared, plan.agent, plan.role, plan.permit));
+            }
+            shared.notify.notified().await;
         }
-        shared.notify.notified().await;
     }
 }
 

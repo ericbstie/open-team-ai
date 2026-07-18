@@ -232,6 +232,11 @@ async fn run_command(args: RunArgs) -> ExitCode {
         assembly_budget: std::env::var("OPENTEAM_ASSEMBLY_BUDGET")
             .ok()
             .and_then(|v| v.parse().ok()),
+        // The offline mock is deterministic per request (ADR 0021); serialize
+        // the reactor so the whole run is byte-identical across invocations —
+        // the reproducibility `--seed` promises (pins §5). The real path keeps
+        // its `--parallel` completion overlap.
+        serial_dispatch: args.mock,
     };
 
     let outcome = openteam_core::run(config, transport, Arc::new(SystemClock)).await;

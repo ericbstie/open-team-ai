@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "An offline, deterministic harness for parallelized agentic teams."
+description = "An LLM harness for parallelized agentic team working."
 
 [dependencies]
 openteam-core = { workspace = true }

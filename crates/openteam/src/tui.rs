@@ -378,6 +378,9 @@ async fn run_session(goal: String, params: RunParams, tx: Sender<Update>) {
     config.agents = params.agents;
     config.meta_agents = params.meta_agents;
     config.parallel = params.agents;
+    // TUI goals always run against the in-process mock, so take the
+    // byte-identical seeded dispatch the mock path pins (pins §5).
+    config.serial_dispatch = true;
     config.out_dir = Some(out_dir.clone());
     if let Some(seed) = params.seed {
         config.seed = seed;

@@ -165,6 +165,36 @@ degradation carries no marker (the mock doesn't need it).
   without a further yield completion (`turn_completed` precedes
   `run_finished`, per transcript events 32–33).
 
+### Deterministic dispatch under `--mock` (`RunConfig.serial_dispatch`)
+
+ADR 0025 placed byte-identical run logs *Out-of-scope* because the default
+multi-thread runtime lets concurrently-spawned turns win the single write-path
+lock (ADR 0011) in a wall-clock/thread-scheduling-dependent order — even though
+every mock response is already a pure function of its request (ADR 0021). That
+order feeds decisions (EventId assignment, the meta cadence counters, the
+edge-trigger watermarks), so the same `--seed` produced materially different
+runs. ADR 0026 then made `--mock` an explicit opt-in whose *whole point* is
+deterministic offline runs, so we now pin reproducibility for that path:
+
+- `RunConfig.serial_dispatch` (set by the bin iff `--mock`) makes the reactor
+  drive each planned batch **to completion one turn in flight at a time, in the
+  fixed plan order** — orchestrator, then meta-agents and team agents in
+  `BTreeMap` (handle) order. With never two turns racing for the lock, the
+  write-path commit order — and therefore the whole run — is a pure function of
+  seed + goal. `openteam run <goal> --mock --seed N` is **byte-identical across
+  invocations**, report.md and events.jsonl alike, save the wall-clock
+  `Duration:` line and the `uuidv7` run id.
+- `--parallel` still shapes the run under `serial_dispatch`: it caps how many
+  team agents one planning pass admits (the `Semaphore`, ADR 0015), so work
+  still spreads across the pool — only the *completion overlap* is traded away.
+  The watchdog/duration tasks are unaffected (they never fire on the happy
+  path, ADR 0007/0015), so they cannot perturb the deterministic order.
+- Off (`serial_dispatch = false`, the real path and the direct-`run` unit
+  tests) the batch is spawned concurrently exactly as before — ADR 0025's
+  multi-thread posture and its invariant-only e2e discipline are unchanged (the
+  seeded e2e suite passes `--mock` per ADR 0026, so it now runs deterministically
+  yet still asserts only interleaving-invariant facts).
+
 ## 6. Assembly budgets (defaults; test knob)
 
 Default per-section budgets (tokens, `CharCountTokenizer`): Goal 200, Board
