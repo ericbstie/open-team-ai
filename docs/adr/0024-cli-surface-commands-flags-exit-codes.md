@@ -257,3 +257,14 @@ terminal via an alternate screen, it runs with the stderr tracing subscriber
 suppressed (as `--quiet` does), and stdout is not a report stream in this mode, so
 the ADR 0022 `stdout == report.md` invariant does not apply to `tui` — the report
 is rendered in-pane and the event log still persists to the run dir as usual.
+
+## Amended by ADR 0027 (2026-07-17)
+
+The command tree gains a further top-level subcommand: `openteam serve` (the
+stream server), alongside `run`, the `mock` group, and `tui`, with
+`--dir <runs-root>` (default `.openteam/runs`) and `--port` (`0` = ephemeral).
+The "bare `openteam serve`" rejection above concerned naming the *mock's* server
+`serve`; the name was deliberately kept free and is now claimed by the stream
+server. The global `-v/-vv`/`--quiet` tracing dial applies to it like any
+subcommand. Unlike `tui`, `serve` is a separate read-only process that tails the
+run dir and shares nothing with the run's terminal.

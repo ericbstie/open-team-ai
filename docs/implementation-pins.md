@@ -235,3 +235,112 @@ One-paragraph role skeletons in the spirit of the transcript's samples; the
 team-agent skeleton interpolates its specialty as
 `Specialty: <slug> — <description> Focus: <focus>`. Nothing behavioral reads
 them.
+
+## 9. Stream server (`openteam serve`, ADRs 0027–0030)
+
+### `ServeConfig` defaults and the injection seam
+
+Constructor-injectable config (indicatively
+`ServeConfig { poll_interval, keep_alive, retry_ms, broadcast_capacity }`),
+consumed by `build_router()`/`serve()`; the CLI never sets these (surface is
+exactly `serve --dir --port`). Pinned production defaults:
+
+- tail poll interval: **100 ms**
+- SSE keep-alive comment interval: **15 s**
+- SSE `retry:` hint: **2000 ms**
+- per-run broadcast capacity: **1024** events
+
+Tests construct the router/state directly with fast values (~5 ms poll, tiny
+capacity); the defaults above are what the binary wires in.
+
+### Bound-address print
+
+On successful bind, `openteam serve` prints to **stdout** exactly one line in
+the same shape as the mock's (`openteam mock listening on http://{addr}`):
+
+```
+openteam serve listening on http://<addr>
+```
+
+where `<addr>` is the bound `SocketAddr` (e.g.
+`openteam serve listening on http://127.0.0.1:43210`). Scripts and the e2e
+test parse the address as the token after the final space.
+
+### Routes and status codes
+
+- `GET /` — debug page, 200 `text/html` (non-contract, ADR 0029).
+- `GET /v1/runs` — 200 JSON.
+- `GET /v1/runs/{run_id}/snapshot` — 200 JSON; **404** unknown `run_id`.
+- `GET /v1/runs/{run_id}/events` — 200 `text/event-stream`; **404** unknown
+  `run_id`; **400** unparseable `Last-Event-ID`/`?from=` (non-u64); **204**
+  caught-up connect/reconnect to a terminal (finished or aborted) run.
+
+Stream response headers: `Cache-Control: no-cache`, `X-Accel-Buffering: no`;
+no compression on the stream route.
+
+### Run-list JSON (`GET /v1/runs`)
+
+A top-level JSON **array**, sorted by `run_id` ascending (UUIDv7 ⇒
+chronological). Entry fields (snake_case; key order not contract — snapshot
+and list JSON are value-golden, ADR 0030):
+
+```json
+{ "run_id": "<uuidv7>", "state": "live|finished|aborted",
+  "goal": "…", "seed": 42, "started_at": "<RFC3339 from event 0's at>",
+  "last_event_id": 57,
+  "finished": { "reason": "CleanFinish", "exit_code": 0 } }
+```
+
+`finished` is present **only** when `state` is `"finished"` (omitted
+otherwise); `reason` uses the `run_finished.reason` representation from
+`events.jsonl` (`"CleanFinish"` / `{"CapHit":"MaxTicks"}` / `"HarnessError"`,
+§7). `state` values are lowercase.
+
+### Snapshot JSON (`GET /v1/runs/{run_id}/snapshot`)
+
+Top-level keys exactly `as_of`, `run`, `board`, `agents`, `metrics`:
+
+- `as_of`: u64 `EventId` the fold has consumed through.
+- `run`: the `run_started.data` fields verbatim (`run_id`, `seed`, `goal`,
+  `agents`, `meta_agents`, `parallel`, `scenario`, `caps` — ADR 0022) plus
+  `state`: `"live" | "finished" | "aborted"`.
+- `board`: the `board.json` object shape verbatim (`run_id`, `goal`, `seed`,
+  `tasks`, `teams` — ADR 0022 §8 representations per §7 above).
+- `agents`: one entry per **team agent** (`agent-1..N`), in handle order:
+  `{ "handle": "agent-2", "specialty": "<slug>", "state": … }` with `state`
+  serialized lowercase externally-tagged:
+  `"idle"` / `{"working":{"task":3}}` / `"asleep"` / `"parked"`.
+- `metrics`: `RunSummary` with a plain `#[derive(Serialize)]` — Rust field
+  names as-is, no renames/skips: `outcome` is `null` or the
+  `[reason, exit_code]` pair (reason per §7), tuples serialize as arrays
+  (`respecializations`: `[agent, from, to]`; `tokens_per_agent`:
+  `[handle, n]`).
+
+### SSE stream details
+
+- Log events: `id:` = decimal `EventId`; `data:` = the **verbatim
+  `events.jsonl` line bytes** (byte-golden, ADR 0030); no `event:` field.
+- The abort control frame, exact: `event: run_state`,
+  `data: {"state":"aborted"}` — id-less; then the stream ends. Id-less named
+  frames are server-origin control frames, not log events (ADR 0028).
+- Resume: no header/param = from `EventId` 0; `Last-Event-ID: n` or `?from=n`
+  = replay from `n + 1`.
+
+### Torn-line rule (tailer)
+
+Only complete newline-terminated lines of `events.jsonl` are parsed; a partial
+final line (BufWriter can tear >8 KiB lines across `write(2)` calls) is left
+unconsumed and re-read on the next poll.
+
+### The two granted `openteam-core` changes (ADR 0030; the only ones)
+
+1. `RunSummary` gains `Serialize` (derive; no field renames).
+2. Public owned board-snapshot construction: promote `BoardSnapshot`
+   (`artifacts.rs`) to a public owned type **or** expose a public serializer —
+   implementer's choice; output must match `board.json` semantics with the
+   pinned key order `run_id`, `goal`, `seed`, `tasks`, `teams`.
+
+Plus, on the run process (ADR 0027, the one granted `openteam run` change):
+`openteam run` creates `<run-dir>/run.lock` at run start and holds an
+exclusive advisory `flock` on it for the run's lifetime; the file carries no
+data.

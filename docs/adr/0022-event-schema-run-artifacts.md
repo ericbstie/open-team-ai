@@ -205,3 +205,11 @@ serial write path**, not a shared counter: `EventId`, `MessageId`, `KnowledgeEnt
 make replay and #23's "the Nth event is X" assertions tractable. See ADR 0011's amendment.
 The dry-run transcript (docs/prototypes/dry-run-transcript.md) exercises the full envelope,
 `board.json`, `knowledge.jsonl`, and `report.md`/stdout against this schema.
+
+## Amended by ADR 0027 (2026-07-17)
+
+The run directory gains one file: **`run.lock`**, created at run start and held
+under an exclusive advisory `flock` by `openteam run` for the run's lifetime,
+so a reader can distinguish a live run from an aborted one (bookend absent,
+lock free). It carries no data; the event schema and the artifacts above are
+unchanged.
