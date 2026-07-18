@@ -14,6 +14,8 @@ openteam-mock = { workspace = true }
 clap = { workspace = true }
 tokio = { workspace = true }
 url = { workspace = true }
+ratatui = { workspace = true }
+serde_json = { workspace = true }
 rand = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
@@ -24,7 +26,6 @@ openteam-wire = { workspace = true }
 assert_cmd = { workspace = true }
 predicates = { workspace = true }
 tempfile = { workspace = true }
-serde_json = { workspace = true }
 jiff = { workspace = true }
 
 [lints]

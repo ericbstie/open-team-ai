@@ -227,3 +227,33 @@ message), while a custom `--llm-base-url` with no key is allowed (local servers)
 Model ids are now flags/defaults (real path: `gpt-4o-mini` chat,
 `text-embedding-3-small` embeddings; under `--mock`: both `openteam-mock`) rather
 than the hardcoded `openteam-mock`.
+
+## Amended by base-path endpoints + `--local-embeddings` (2026-07-17)
+
+Building on ADR 0026, two changes let `run` reach endpoints whose OpenAI surface
+is not a bare `/v1/` at the host root — notably Open WebUI, whose chat route is
+`/api/chat/completions` and which exposes no OpenAI `/embeddings`:
+
+- `--llm-base-url` is the full API base *including the path prefix* (a trailing
+  slash is appended if absent), and `ReqwestLlmClient` resolves the relative
+  `chat/completions` / `embeddings` against it. So the mock is addressed as
+  `http://<addr>/v1/`, a standard server as `https://host/v1/`, and Open WebUI as
+  `https://host/api/`. Previously the adapter hardcoded an absolute `/v1/...` path
+  that no base URL could redirect, so a non-`/v1` server returned `405`.
+- `--local-embeddings` (bool) embeds via the in-tree `FeatureHashEmbedder`
+  (ADR 0014) instead of calling `/embeddings`, for endpoints without an OpenAI
+  embeddings route.
+
+## Amended by the `tui` subcommand (2026-07-17)
+
+The command tree gains a third top-level subcommand, `tui`, alongside `run` and
+the `mock` group: `openteam tui` launches an interactive, full-screen terminal UI
+over the harness — a companion to the one-shot `run`, driving the same
+`openteam_core::run` against a fresh in-process mock from a `ratatui`/crossterm
+loop (see `crates/openteam/src/tui.rs`). `TuiArgs` exposes a deliberately minimal
+subset — `--agents`, `--meta-agents`, `--seed` — and adds no flags to `run`/`mock`,
+so the pinned one-shot surface above is unchanged. Because the TUI owns the
+terminal via an alternate screen, it runs with the stderr tracing subscriber
+suppressed (as `--quiet` does), and stdout is not a report stream in this mode, so
+the ADR 0022 `stdout == report.md` invariant does not apply to `tui` — the report
+is rendered in-pane and the event log still persists to the run dir as usual.
