@@ -1483,6 +1483,7 @@ dependencies = [
  "jiff",
  "openteam-wire",
  "reqwest",
+ "rustix",
  "schemars",
  "serde",
  "serde_json",

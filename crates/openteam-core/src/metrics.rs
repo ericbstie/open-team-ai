@@ -14,6 +14,7 @@
 
 use jiff::Timestamp;
 use openteam_wire::{AgentId, SpecialtySlug};
+use serde::Serialize;
 use std::collections::{BTreeMap, VecDeque};
 
 use crate::directive::DirectiveTier;
@@ -559,7 +560,12 @@ impl Metrics {
 
 /// The report's projection of [`Metrics`] — rendered into `report.md` and
 /// printed identically to stdout (ADR 0022, transcript §11).
-#[derive(Debug, Clone, PartialEq)]
+///
+/// The plain `Serialize` derive is the snapshot's `metrics` block (ADR 0030's
+/// fourth view of ADR 0020's one-computation-N-views): Rust field names as-is,
+/// no renames/skips; `outcome` is `null` or the `[reason, exit_code]` pair,
+/// and the tuple fields serialize as arrays (pins §9).
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct RunSummary {
     /// `run_finished`'s reason and exit code; `None` if the run has not
     /// finished (a summary is normally rendered after the bookend).
@@ -871,6 +877,49 @@ mod tests {
         assert_eq!(
             tokens_line,
             "- Tokens: 14.7k total — orchestrator 5.6k, agent-1 3.8k, agent-2 2.7k, agent-3 898, meta-1 1.8k"
+        );
+    }
+
+    /// The snapshot's `metrics` block (ADR 0030, pins §9): a plain
+    /// `Serialize` derive — Rust field names as-is, `outcome` the
+    /// `[reason, exit_code]` pair (reason per §7), tuple fields as arrays.
+    #[test]
+    fn run_summary_serializes_to_the_pinned_snapshot_shape() {
+        let value = serde_json::to_value(folded_transcript().summary()).unwrap();
+
+        // outcome is the [reason, exit_code] pair, reason per §7.
+        assert_eq!(value["outcome"], serde_json::json!(["CleanFinish", 0]));
+        // respecializations: [agent, from, to] tuples serialize as arrays.
+        assert_eq!(
+            value["respecializations"],
+            serde_json::json!([["agent-3", "generalist", "doc-reviewer"]])
+        );
+        // tokens_per_agent: [handle, n] tuples serialize as arrays, in the
+        // pinned handle order.
+        let tokens = value["tokens_per_agent"].as_array().unwrap();
+        assert_eq!(tokens[0][0], "orchestrator");
+        assert_eq!(tokens[1][0], "agent-1");
+        assert!(tokens.iter().all(|pair| pair[1].is_u64()));
+        // Field names are as-is, no renames.
+        for key in [
+            "wall_secs",
+            "ticks",
+            "team_agents",
+            "meta_agents",
+            "tasks_completed",
+            "tokens_total",
+            "directives_issued",
+            "liveness_nudges",
+        ] {
+            assert!(value.get(key).is_some(), "missing field {key}");
+        }
+
+        // A not-yet-finished summary serializes `outcome` as null.
+        let mut pending = folded_transcript().summary();
+        pending.outcome = None;
+        assert_eq!(
+            serde_json::to_value(pending).unwrap()["outcome"],
+            serde_json::Value::Null
         );
     }
 

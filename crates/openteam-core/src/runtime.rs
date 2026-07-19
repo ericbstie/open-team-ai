@@ -2174,6 +2174,11 @@ pub async fn run(
 ) -> Result<RunOutcome, RunError> {
     let run_id = uuid::Uuid::now_v7();
     let run_dir = artifacts::create_run_dir(config.out_dir.as_deref(), run_id)?;
+    // Hold an exclusive advisory lock on `<run-dir>/run.lock` for the run's
+    // lifetime (ADR 0027): the stream server reads its release as the run
+    // dying. Bound to `run()`'s stack, so it drops on every return path, and
+    // the kernel releases it on process death (`SIGKILL`, panic).
+    let _run_lock = artifacts::acquire_run_lock(&run_dir)?;
     let events_writer = artifacts::EventsWriter::create(&run_dir)?;
 
     let parallel = config.parallel.min(config.agents).max(1);

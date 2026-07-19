@@ -43,6 +43,11 @@ jiff = { version = "0.2", features = ["serde"] }
 # Encoding
 base64 = "0.22"
 
+# OS advisory file locking — `run.lock` flock liveness (ADR 0027). A safe
+# wrapper over flock(2), so no `unsafe` (the workspace forbids it); already in
+# the tree transitively (tempfile, crossterm).
+rustix = { version = "1", features = ["fs"] }
+
 # Errors + tracing + async traits
 thiserror = "2"
 anyhow = "1"
