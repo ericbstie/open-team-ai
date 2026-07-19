@@ -24,10 +24,7 @@
     li:hover { background: #f0f0f0; }
     li.selected { background: #e6efff; border-color: #b3d1ff; }
     .rid { font-family: ui-monospace, monospace; font-size: 11px; color: #444; word-break: break-all; }
-    .badge { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 10px; margin-left: 4px; }
-    .live { background: #d6f5d6; color: #1a6b1a; }
-    .finished { background: #e0e0e0; color: #444; }
-    .aborted { background: #fddede; color: #a11; }
+    .state { font-family: ui-monospace, monospace; font-size: 11px; color: #444; }
   </style>
 </head>
 <body>
@@ -53,9 +50,9 @@
 
   <script>
     // The debug page tails and dumps. It NEVER interprets, folds, or styles
-    // domain data (ADR 0029): the snapshot is pretty-printed verbatim, and the
-    // event tail appends one raw line per SSE event. The only "styling" is the
-    // run-list state badge, read straight off the list endpoint.
+    // domain data (ADR 0029): the run list, snapshot, and event tail are all
+    // rendered verbatim — the snapshot pretty-printed, one raw line per SSE
+    // event, run state shown as plain text.
     let source = null;
     let selected = null;
 
@@ -71,14 +68,16 @@
           const rid = document.createElement('div');
           rid.className = 'rid';
           rid.textContent = run.run_id;
-          const badge = document.createElement('span');
-          badge.className = 'badge ' + run.state;
-          badge.textContent = run.state;
+          // State is dumped as plain text — never interpreted or color-coded
+          // (ADR 0029: the page only tails and dumps, it never styles domain data).
+          const state = document.createElement('span');
+          state.className = 'state';
+          state.textContent = ' [' + run.state + ']';
           const goal = document.createElement('div');
           goal.textContent = run.goal;
           li.appendChild(goal);
           li.appendChild(rid);
-          rid.appendChild(badge);
+          rid.appendChild(state);
           li.addEventListener('click', () => selectRun(run.run_id));
           list.appendChild(li);
         }

@@ -214,21 +214,26 @@ fn replay_from(dir: &std::path::Path, start_id: u64) -> Vec<(u64, String)> {
 }
 
 /// Parse the resume point → the first `EventId` to replay. `Last-Event-ID: n`
-/// (or `?from=n`) ⇒ `n + 1`; absent/empty ⇒ 0; non-`u64` ⇒ `Err` (→ 400).
+/// (or `?from=n`) ⇒ `n + 1`; absent/empty ⇒ 0; a non-`u64` in **either** channel
+/// ⇒ `Err` (→ 400, pins §9). `Last-Event-ID` takes precedence when both parse
+/// (`?from=` is the reload/curl fallback, ADR 0028), but a garbage `?from=`
+/// still fails loudly even alongside a valid header.
 fn resume_start(headers: &HeaderMap, from_query: Option<&str>) -> Result<u64, ()> {
-    let header = headers
-        .get("last-event-id")
-        .and_then(|value| value.to_str().ok())
-        .map(str::trim)
-        .filter(|value| !value.is_empty());
-    let raw = header.or(from_query.map(str::trim).filter(|value| !value.is_empty()));
-    match raw {
-        None => Ok(0),
-        Some(value) => value
-            .parse::<u64>()
-            .map(|n| n.saturating_add(1))
-            .map_err(|_| ()),
+    // Parse one present-and-non-empty resume id; `None` when absent/empty,
+    // `Err` (→ 400) when present but not a `u64`.
+    fn parse_id(raw: Option<&str>) -> Result<Option<u64>, ()> {
+        match raw.map(str::trim).filter(|value| !value.is_empty()) {
+            None => Ok(None),
+            Some(value) => value.parse::<u64>().map(Some).map_err(|_| ()),
+        }
     }
+    let header = parse_id(
+        headers
+            .get("last-event-id")
+            .and_then(|value| value.to_str().ok()),
+    )?;
+    let query = parse_id(from_query)?;
+    Ok(header.or(query).map_or(0, |n| n.saturating_add(1)))
 }
 
 /// The producer for a **terminal** run: retry hint, replay, then (for aborted)
@@ -377,6 +382,13 @@ mod tests {
         // Non-u64 → Err (→ 400).
         assert_eq!(resume_start(&header_map(Some("nope")), None), Err(()));
         assert_eq!(resume_start(&header_map(None), Some("1.5")), Err(()));
+        // Both channels are validated: a garbage ?from fails even alongside a
+        // valid header (pins §9); when both parse, the header wins.
+        assert_eq!(
+            resume_start(&header_map(Some("5")), Some("garbage")),
+            Err(())
+        );
+        assert_eq!(resume_start(&header_map(Some("5")), Some("2")), Ok(6));
     }
 
     /// The lag path: a subscriber that falls behind a tiny broadcast buffer

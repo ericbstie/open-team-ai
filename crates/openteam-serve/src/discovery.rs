@@ -38,13 +38,6 @@ impl RunState {
             Self::Aborted => "aborted",
         }
     }
-
-    /// Terminal runs (finished or aborted) get a 204 on a caught-up SSE
-    /// connect (ADR 0028) — consumed by the stream endpoint in step 6.
-    #[allow(dead_code)]
-    pub(crate) fn is_terminal(self) -> bool {
-        matches!(self, Self::Finished | Self::Aborted)
-    }
 }
 
 /// The `run_started` header of a run (event 0), plus the raw `data` object so
