@@ -20,7 +20,7 @@ use tokio::task::JoinHandle;
 
 use crate::config::ServeConfig;
 use crate::stream::LiveRegistry;
-use crate::{routes, stream};
+use crate::{debug, routes, stream};
 
 /// Immutable shared server state (ADR 0030): the one discovery root, the
 /// injected timing config, and the per-live-run broadcast registry. Cheap to
@@ -52,13 +52,16 @@ pub fn build_router(root: PathBuf, config: ServeConfig) -> Router {
         poll_ms = state.config.poll_interval.as_millis(),
         "stream server router built"
     );
-    // Contract routes under `/v1/` — the single version marker (ADR 0029). The
-    // SSE stream route and the `GET /` debug page mount here in steps 6–7.
+    // Contract routes under `/v1/` — the single version marker (ADR 0029); the
+    // debug page at `/` sits outside it, a non-contract surface.
     let v1 = Router::new()
         .route("/runs", get(routes::list_runs))
         .route("/runs/{run_id}/snapshot", get(routes::snapshot))
         .route("/runs/{run_id}/events", get(stream::events));
-    Router::new().nest("/v1", v1).with_state(state)
+    Router::new()
+        .route("/", get(debug::page))
+        .nest("/v1", v1)
+        .with_state(state)
 }
 
 /// A graceful-shutdown handle for a served stream server: signals the listener

@@ -237,3 +237,27 @@ async fn snapshot_of_an_unknown_run_is_404() {
 
     handle.shutdown().await;
 }
+
+#[tokio::test]
+async fn debug_page_is_served_at_root_as_html() {
+    // The single permitted assertion for the non-contract debug page (ADR
+    // 0029/0030): GET / returns 200 text/html.
+    let root = TempDir::new().unwrap();
+    let (addr, handle) = serve(root.path().to_path_buf(), fast_config(), 0)
+        .await
+        .unwrap();
+
+    let resp = reqwest::get(format!("http://{addr}/")).await.unwrap();
+    assert_eq!(resp.status(), 200);
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or_default();
+    assert!(
+        content_type.starts_with("text/html"),
+        "content-type was {content_type:?}"
+    );
+
+    handle.shutdown().await;
+}
