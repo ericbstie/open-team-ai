@@ -17,10 +17,15 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
 mod config;
-// `discovery` is wired into the router in step 5, `tail` into the SSE stream in
-// step 6; the `allow` is removed as each module's surface is consumed.
+// `discovery` + `fold` + `schema` are wired into the router in step 5, `tail`
+// into the SSE stream in step 6; the `allow` is removed as each module's
+// surface is consumed.
 #[allow(dead_code)]
 mod discovery;
+#[allow(dead_code)]
+mod fold;
+#[allow(dead_code)]
+mod schema;
 mod server;
 #[allow(dead_code)]
 mod tail;
