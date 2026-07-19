@@ -1513,6 +1513,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "openteam-serve"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "jiff",
+ "openteam-core",
+ "openteam-wire",
+ "reqwest",
+ "rustix",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "openteam-wire"
 version = "0.1.0"
 dependencies = [

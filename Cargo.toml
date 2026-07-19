@@ -4,6 +4,7 @@ members = [
     "crates/openteam-wire",
     "crates/openteam-core",
     "crates/openteam-mock",
+    "crates/openteam-serve",
     "crates/openteam",
 ]
 
@@ -18,6 +19,7 @@ repository = "https://github.com/ericbstie/open-team-ai"
 openteam-wire = { path = "crates/openteam-wire" }
 openteam-core = { path = "crates/openteam-core" }
 openteam-mock = { path = "crates/openteam-mock" }
+openteam-serve = { path = "crates/openteam-serve" }
 
 # Async runtime + HTTP
 tokio = { version = "1.42", features = ["rt-multi-thread", "macros", "sync", "time", "net", "signal"] }
