@@ -22,10 +22,7 @@ mod fold;
 mod routes;
 mod schema;
 mod server;
-// `tail`'s `Tailer` + `split_complete_lines` are consumed by the SSE stream in
-// step 6; `read_complete_lines` is already used by discovery. The `allow` is
-// removed when the stream lands.
-#[allow(dead_code)]
+mod stream;
 mod tail;
 
 pub use config::ServeConfig;

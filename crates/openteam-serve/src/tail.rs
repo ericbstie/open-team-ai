@@ -44,9 +44,21 @@ impl Tailer {
         }
     }
 
-    /// The byte offset consumed through so far (a line boundary).
-    pub(crate) fn offset(&self) -> u64 {
-        self.offset
+    /// Skip to the last complete-line boundary of the current file, so the
+    /// next poll only sees lines appended *after* now. The live broadcast
+    /// tailer starts here — historical events are served to connections via
+    /// their own file catch-up, so the broadcast carries only fresh events
+    /// (ADR 0028's subscribe-first → file catch-up → live tail).
+    pub(crate) fn skip_to_end(&mut self) {
+        self.offset = std::fs::read(&self.path)
+            .ok()
+            .map(|bytes| {
+                bytes
+                    .iter()
+                    .rposition(|&b| b == b'\n')
+                    .map_or(0, |i| (i + 1) as u64)
+            })
+            .unwrap_or(0);
     }
 
     /// Read and return new complete lines (bytes, no trailing `\n`) since the
@@ -154,7 +166,23 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let mut tailer = Tailer::new(dir.path().join("events.jsonl"));
         assert!(tailer.poll().unwrap().is_empty());
-        assert_eq!(tailer.offset(), 0);
+    }
+
+    #[test]
+    fn skip_to_end_positions_at_the_last_line_boundary() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("events.jsonl");
+        std::fs::write(&path, b"a\nb\n").unwrap();
+        let mut tailer = Tailer::new(&path);
+        tailer.skip_to_end();
+        // Nothing before now; only appends after are seen.
+        assert!(tailer.poll().unwrap().is_empty());
+        std::fs::OpenOptions::new()
+            .append(true)
+            .open(&path)
+            .and_then(|mut f| std::io::Write::write_all(&mut f, b"c\n"))
+            .unwrap();
+        assert_eq!(lines_utf8(&tailer.poll().unwrap()), vec!["c".to_string()]);
     }
 
     #[test]

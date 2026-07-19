@@ -19,14 +19,17 @@ use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
 
 use crate::config::ServeConfig;
-use crate::routes;
+use crate::stream::LiveRegistry;
+use crate::{routes, stream};
 
-/// Immutable shared server state (ADR 0030): the one discovery root and the
-/// injected timing config. Cheap to clone — everything behind an `Arc`.
+/// Immutable shared server state (ADR 0030): the one discovery root, the
+/// injected timing config, and the per-live-run broadcast registry. Cheap to
+/// clone — everything behind an `Arc`.
 #[derive(Clone)]
 pub(crate) struct AppState {
     pub(crate) root: Arc<PathBuf>,
     pub(crate) config: Arc<ServeConfig>,
+    pub(crate) live: Arc<LiveRegistry>,
 }
 
 impl AppState {
@@ -34,6 +37,7 @@ impl AppState {
         Self {
             root: Arc::new(root),
             config: Arc::new(config),
+            live: Arc::new(LiveRegistry::default()),
         }
     }
 }
@@ -52,7 +56,8 @@ pub fn build_router(root: PathBuf, config: ServeConfig) -> Router {
     // SSE stream route and the `GET /` debug page mount here in steps 6–7.
     let v1 = Router::new()
         .route("/runs", get(routes::list_runs))
-        .route("/runs/{run_id}/snapshot", get(routes::snapshot));
+        .route("/runs/{run_id}/snapshot", get(routes::snapshot))
+        .route("/runs/{run_id}/events", get(stream::events));
     Router::new().nest("/v1", v1).with_state(state)
 }
 

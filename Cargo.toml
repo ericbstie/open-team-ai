@@ -24,6 +24,9 @@ openteam-serve = { path = "crates/openteam-serve" }
 # Async runtime + HTTP
 tokio = { version = "1.42", features = ["rt-multi-thread", "macros", "sync", "time", "net", "signal"] }
 axum = "0.8"
+# The `Stream` trait alone (axum's SSE bound), for the hand-rolled per-connection
+# stream over an mpsc receiver — no combinators, no heavier futures crate.
+futures-core = "0.3"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 
 # CLI

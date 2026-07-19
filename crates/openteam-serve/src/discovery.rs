@@ -140,6 +140,31 @@ pub(crate) fn last_event(dir: &Path) -> Option<serde_json::Value> {
     serde_json::from_slice(lines.last()?).ok()
 }
 
+/// Complete events as `(EventId, verbatim line)` pairs — the SSE stream's
+/// resume-filtered replay source. The line is the byte-verbatim `events.jsonl`
+/// line (ADR 0028/0030's byte-golden `data:` payload); lines that aren't UTF-8
+/// or lack a numeric `id` are skipped.
+pub(crate) fn read_event_lines(dir: &Path) -> Vec<(u64, String)> {
+    read_complete_lines(&dir.join("events.jsonl"))
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|bytes| {
+            let line = String::from_utf8(bytes).ok()?;
+            let id = event_id(&line)?;
+            Some((id, line))
+        })
+        .collect()
+}
+
+/// The `id` of one `events.jsonl` line, parsed cheaply (the live tailer's
+/// per-line id for resume/dedupe arithmetic).
+pub(crate) fn event_id(line: &str) -> Option<u64> {
+    serde_json::from_str::<serde_json::Value>(line)
+        .ok()?
+        .get("id")?
+        .as_u64()
+}
+
 /// Classify a run directory's state (ADR 0027): bookend first, then flock.
 pub(crate) fn classify(dir: &Path) -> RunState {
     if has_finished_bookend(dir) {
