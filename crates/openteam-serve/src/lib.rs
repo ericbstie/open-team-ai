@@ -17,7 +17,13 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
 mod config;
+// `discovery` is wired into the router in step 5, `tail` into the SSE stream in
+// step 6; the `allow` is removed as each module's surface is consumed.
+#[allow(dead_code)]
+mod discovery;
 mod server;
+#[allow(dead_code)]
+mod tail;
 
 pub use config::ServeConfig;
 pub use server::{ShutdownHandle, build_router, serve};
