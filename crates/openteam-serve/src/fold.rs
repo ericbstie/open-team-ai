@@ -227,8 +227,9 @@ pub(crate) fn snapshot(header: &RunHeader, state: RunState, events: &[Event]) ->
 }
 
 /// Fold a run's board into a [`BoardSnapshot`] alone — the cheap equivalence
-/// helper (ADR 0030): fold `events.jsonl`, compare to `board.json`. Used by the
-/// e2e invariant tier over every fresh `--mock` run dir.
+/// helper (ADR 0030): fold `events.jsonl`, compare to `board.json`. Consumed by
+/// the e2e invariant tier over every fresh `--mock` run dir in step 8.
+#[allow(dead_code)]
 pub(crate) fn board_snapshot(
     run_id: RunId,
     goal: &str,

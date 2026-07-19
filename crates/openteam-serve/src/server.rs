@@ -13,11 +13,13 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::Router;
+use axum::routing::get;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
 
 use crate::config::ServeConfig;
+use crate::routes;
 
 /// Immutable shared server state (ADR 0030): the one discovery root and the
 /// injected timing config. Cheap to clone — everything behind an `Arc`.
@@ -46,7 +48,12 @@ pub fn build_router(root: PathBuf, config: ServeConfig) -> Router {
         poll_ms = state.config.poll_interval.as_millis(),
         "stream server router built"
     );
-    Router::new().with_state(state)
+    // Contract routes under `/v1/` — the single version marker (ADR 0029). The
+    // SSE stream route and the `GET /` debug page mount here in steps 6–7.
+    let v1 = Router::new()
+        .route("/runs", get(routes::list_runs))
+        .route("/runs/{run_id}/snapshot", get(routes::snapshot));
+    Router::new().nest("/v1", v1).with_state(state)
 }
 
 /// A graceful-shutdown handle for a served stream server: signals the listener

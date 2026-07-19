@@ -39,6 +39,9 @@ impl RunState {
         }
     }
 
+    /// Terminal runs (finished or aborted) get a 204 on a caught-up SSE
+    /// connect (ADR 0028) — consumed by the stream endpoint in step 6.
+    #[allow(dead_code)]
     pub(crate) fn is_terminal(self) -> bool {
         matches!(self, Self::Finished | Self::Aborted)
     }
@@ -117,6 +120,24 @@ pub(crate) fn find_run(root: &Path, run_id: &str) -> Option<DiscoveredRun> {
     let path = root.join(parsed.to_string());
     let header = run_header(&path)?;
     (header.run_id == parsed).then_some(DiscoveredRun { path, header })
+}
+
+/// Parse a run's complete events in order (unparseable lines skipped). The
+/// snapshot fold and the SSE stream both read through here.
+pub(crate) fn read_events(dir: &Path) -> Vec<Event> {
+    read_complete_lines(&dir.join("events.jsonl"))
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|line| serde_json::from_slice(line).ok())
+        .collect()
+}
+
+/// The last **complete** event as a raw JSON value — the run list's
+/// `last_event_id` and (for finished runs) `finished` block read from here.
+/// `None` when the log has no complete events yet.
+pub(crate) fn last_event(dir: &Path) -> Option<serde_json::Value> {
+    let lines = read_complete_lines(&dir.join("events.jsonl")).ok()?;
+    serde_json::from_slice(lines.last()?).ok()
 }
 
 /// Classify a run directory's state (ADR 0027): bookend first, then flock.
