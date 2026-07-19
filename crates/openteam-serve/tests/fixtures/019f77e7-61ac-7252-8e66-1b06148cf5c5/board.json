@@ -1,0 +1,32 @@
+{
+  "run_id": "019f77e7-61ac-7252-8e66-1b06148cf5c5",
+  "goal": "Write a short onboarding guide for new contributors",
+  "seed": 42,
+  "tasks": [
+    {
+      "id": 1,
+      "title": "Outline the guide overview",
+      "description": "Outline work covering guide toward the goal.",
+      "created_by": "orchestrator",
+      "origin_event": 2,
+      "team": "t1",
+      "state": {
+        "Done": {
+          "result": "Outline the guide overview: complete; see the knowledge store.",
+          "result_ref": 2
+        }
+      }
+    }
+  ],
+  "teams": [
+    {
+      "id": "t1",
+      "members": [
+        "agent-1",
+        "agent-2",
+        "agent-3"
+      ],
+      "dissolved": false
+    }
+  ]
+}

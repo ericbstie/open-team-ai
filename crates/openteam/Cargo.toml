@@ -10,6 +10,7 @@ description = "An LLM harness for parallelized agentic team working."
 [dependencies]
 openteam-core = { workspace = true }
 openteam-mock = { workspace = true }
+openteam-serve = { workspace = true }
 
 clap = { workspace = true }
 tokio = { workspace = true }
@@ -23,10 +24,15 @@ tracing-subscriber = { workspace = true }
 
 [dev-dependencies]
 openteam-wire = { workspace = true }
+openteam-serve = { workspace = true }
 assert_cmd = { workspace = true }
 predicates = { workspace = true }
 tempfile = { workspace = true }
 jiff = { workspace = true }
+# A blocking HTTP client for the stream-server e2e (spawn `openteam serve`,
+# hit its endpoints); the async paths are covered in the serve crate's tests.
+reqwest = { workspace = true, features = ["blocking"] }
+serde_json = { workspace = true }
 
 [lints]
 workspace = true

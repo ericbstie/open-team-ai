@@ -28,3 +28,22 @@ mod tail;
 
 pub use config::ServeConfig;
 pub use server::{ShutdownHandle, build_router, serve};
+
+use std::path::Path;
+
+/// Fold a run directory's `events.jsonl` into its board snapshot — the public
+/// entry point for the finished-run **folded snapshot ≡ board.json** invariant
+/// (ADR 0028/0030), callable from e2e tests without spawning the server. It is
+/// the same fold the `/v1/.../snapshot` endpoint runs, over a run dir the
+/// harness just produced. Returns `None` if the directory has no readable
+/// `run_started` header (not a run).
+pub fn folded_board(dir: &Path) -> Option<openteam_core::BoardSnapshot> {
+    let header = discovery::run_header(dir)?;
+    let events = discovery::read_events(dir);
+    Some(fold::board_snapshot(
+        header.run_id,
+        &header.goal,
+        header.seed,
+        &events,
+    ))
+}
