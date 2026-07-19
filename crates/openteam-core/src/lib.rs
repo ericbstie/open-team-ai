@@ -27,6 +27,7 @@ mod metrics;
 mod runtime;
 mod tools;
 
+pub use artifacts::BoardSnapshot;
 pub use board::{Board, BoardRejection, MembershipDelta, Task, TaskState, Team};
 pub use clock::{Clock, FrozenClock, SystemClock};
 pub use context::{

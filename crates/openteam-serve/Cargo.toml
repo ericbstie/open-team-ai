@@ -1,0 +1,29 @@
+[package]
+name = "openteam-serve"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "The read-only stream server: discovers, tails, and folds .openteam/runs, serving the run list, a folded snapshot, and a verbatim-event SSE stream over a versioned /v1/ HTTP surface (ADRs 0027-0030)."
+
+[dependencies]
+openteam-core = { workspace = true }
+openteam-wire = { workspace = true }
+
+axum = { workspace = true }
+futures-core = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+jiff = { workspace = true }
+rustix = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+reqwest = { workspace = true }
+tokio = { workspace = true, features = ["macros"] }
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

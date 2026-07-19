@@ -53,6 +53,14 @@ fn happy_path_pinned_seed_full_parallel() {
     assert!(of_kind(&events, "context_degraded").is_empty());
     assert!(of_kind(&events, "agent_parked").is_empty());
 
+    // `openteam run` holds a `run.lock` flock for the run's lifetime
+    // (ADR 0027) — the file stays after finalize; the stream server's
+    // classifier reads its lock state, not its presence.
+    assert!(
+        dir.path().join("run.lock").exists(),
+        "run.lock must exist in the run dir"
+    );
+
     // --quiet: stdout is byte-identical to the persisted report.md
     // (ADR 0022/0024).
     assert_eq!(run.stdout(), run.report_md());

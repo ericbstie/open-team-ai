@@ -34,6 +34,8 @@ pub enum Command {
     Run(RunArgs),
     /// Launch the simplified interactive TUI.
     Tui(TuiArgs),
+    /// Serve the read-only stream server over `.openteam/runs` (ADR 0027).
+    Serve(StreamServeArgs),
     /// Mock LLM server tooling.
     Mock {
         #[command(subcommand)]
@@ -157,4 +159,17 @@ pub struct ServeArgs {
     /// Scenario fixture overriding the built-in behavior arc (ADR 0023).
     #[arg(long, value_name = "FILE")]
     pub scenario: Option<PathBuf>,
+}
+
+/// The stream server surface, pinned to exactly `--dir` + `--port` (ADR 0027);
+/// the `ServeConfig` timing knobs are never on the CLI (ADR 0030).
+#[derive(Args)]
+pub struct StreamServeArgs {
+    /// Discovery root: one directory of run subdirs (default `.openteam/runs`).
+    #[arg(long, default_value = ".openteam/runs", value_name = "DIR")]
+    pub dir: PathBuf,
+
+    /// Port to bind (0 = OS-assigned ephemeral port, printed on startup).
+    #[arg(long, default_value_t = 0, value_name = "PORT")]
+    pub port: u16,
 }

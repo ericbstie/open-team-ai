@@ -49,44 +49,64 @@ pub(crate) fn create_run_dir(out_dir: Option<&Path>, run_id: RunId) -> std::io::
     Ok(dir)
 }
 
-/// The final `board.json` snapshot (ADR 0022). Serialized from a struct —
-/// not a `serde_json::Value`, whose object keys sort alphabetically — so
-/// keys emit in the transcript's pinned field order: `run_id`, `goal`,
+/// The `board.json` snapshot (ADR 0022) — an **owned, public** type so the
+/// stream server can fold `events.jsonl` into a `Board` and serialize the
+/// identical shape (ADR 0030's second granted core change). Serialized from a
+/// struct — not a `serde_json::Value`, whose object keys sort alphabetically —
+/// so keys emit in the transcript's pinned field order: `run_id`, `goal`,
 /// `seed`, `tasks`, `teams` (dry-run transcript §8).
-#[derive(Debug, Serialize)]
-pub(crate) struct BoardSnapshot<'a> {
-    run_id: RunId,
-    goal: &'a str,
-    seed: u64,
-    tasks: Vec<&'a Task>,
-    teams: &'a [Team],
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct BoardSnapshot {
+    pub run_id: RunId,
+    pub goal: String,
+    pub seed: u64,
+    pub tasks: Vec<Task>,
+    pub teams: Vec<Team>,
 }
 
-/// Build the final `board.json` snapshot (ADR 0022); `Task` and `Team`
-/// declare their fields in the transcript's §8 order, so struct
-/// serialization preserves it end to end.
-pub(crate) fn board_snapshot<'a>(
-    run_id: RunId,
-    goal: &'a str,
-    seed: u64,
-    board: &'a Board,
-) -> BoardSnapshot<'a> {
-    let mut tasks: Vec<&Task> = board.tasks().collect();
-    tasks.sort_by_key(|t| t.id);
-    BoardSnapshot {
-        run_id,
-        goal,
-        seed,
-        tasks,
-        teams: board.teams(),
+impl BoardSnapshot {
+    /// Build the snapshot from a live [`Board`] (ADR 0022): tasks in id
+    /// (== creation) order, teams in formation order, dissolved included.
+    /// `Task` and `Team` declare their fields in the transcript's §8 order, so
+    /// struct serialization preserves it end to end.
+    pub fn new(run_id: RunId, goal: impl Into<String>, seed: u64, board: &Board) -> Self {
+        let mut tasks: Vec<Task> = board.tasks().cloned().collect();
+        tasks.sort_by_key(|t| t.id);
+        Self {
+            run_id,
+            goal: goal.into(),
+            seed,
+            tasks,
+            teams: board.teams().to_vec(),
+        }
     }
+}
+
+/// Build the final `board.json` snapshot (ADR 0022) — the runtime's call site;
+/// [`BoardSnapshot::new`] is the same construction the stream server reuses.
+pub(crate) fn board_snapshot(run_id: RunId, goal: &str, seed: u64, board: &Board) -> BoardSnapshot {
+    BoardSnapshot::new(run_id, goal, seed, board)
+}
+
+/// Create `<run-dir>/run.lock` and hold an **exclusive OS advisory
+/// (`flock`)** lock on it for the run's lifetime (ADR 0027): the returned
+/// [`File`] must be kept alive by the caller, and the kernel releases the
+/// lock on *any* process death, including `SIGKILL`. The file carries no
+/// data and touches no event schema. `flock(2)`'s per-open-file-description
+/// semantics are load-bearing for the stream server's liveness classifier
+/// (a separate `open()` conflicts, ADR 0030).
+pub(crate) fn acquire_run_lock(dir: &Path) -> std::io::Result<File> {
+    let file = File::create(dir.join("run.lock"))?;
+    rustix::fs::flock(&file, rustix::fs::FlockOperation::LockExclusive)
+        .map_err(std::io::Error::from)?;
+    Ok(file)
 }
 
 /// Write the three finalized snapshots — `board.json`, `knowledge.jsonl`,
 /// `report.md` — on every termination path, clean or capped (ADR 0006/0022).
 pub(crate) fn write_final_snapshots(
     dir: &Path,
-    board_snapshot: &BoardSnapshot<'_>,
+    board_snapshot: &BoardSnapshot,
     entries: &[KnowledgeEntry],
     report: &str,
 ) -> std::io::Result<()> {
@@ -199,5 +219,69 @@ mod tests {
         );
         let teams_section = &json[json.find("\"teams\"").unwrap()..];
         assert_key_order(teams_section, &["id", "members", "dissolved"]);
+    }
+
+    /// The public owned [`BoardSnapshot`] serializes byte-identically to what
+    /// `write_final_snapshots` persists as `board.json` (ADR 0030's second
+    /// granted core change): the stream server reuses this exact construction.
+    #[test]
+    fn public_board_snapshot_serializes_byte_equal_to_board_json() {
+        let mut board = Board::new();
+        board
+            .form_team(TeamId::parse("t1").unwrap(), vec![AgentId::team(1)])
+            .unwrap();
+        board
+            .create_task(
+                TaskId::new(1),
+                "Draft the setup section",
+                "Install + build/test steps.",
+                AgentId::orchestrator(),
+                EventId::new(2),
+                Some(TeamId::parse("t1").unwrap()),
+            )
+            .unwrap();
+
+        let snapshot = BoardSnapshot::new(uuid::Uuid::nil(), "g", 42, &board);
+        let dir = tempfile::tempdir().unwrap();
+        write_final_snapshots(dir.path(), &snapshot, &[], "report").unwrap();
+        let persisted = std::fs::read_to_string(dir.path().join("board.json")).unwrap();
+
+        // `write_final_snapshots` writes `to_string_pretty + "\n"`; the public
+        // constructor must reproduce it exactly.
+        assert_eq!(
+            persisted,
+            serde_json::to_string_pretty(&snapshot).unwrap() + "\n"
+        );
+        // And the free-function `board_snapshot` is the same construction.
+        assert_eq!(snapshot, board_snapshot(uuid::Uuid::nil(), "g", 42, &board));
+    }
+
+    /// `run.lock`'s exclusive `flock` uses per-open-file-description
+    /// semantics (ADR 0027/0030): a second `open()` of the same file — even
+    /// in the same process — conflicts, which is exactly what the stream
+    /// server's liveness classifier relies on.
+    #[test]
+    fn run_lock_conflicts_with_a_second_open_in_the_same_process() {
+        let dir = tempfile::tempdir().unwrap();
+        let held = acquire_run_lock(dir.path()).unwrap();
+
+        // A separate open + non-blocking exclusive flock must fail while held.
+        let contender = File::open(dir.path().join("run.lock")).unwrap();
+        let conflict = rustix::fs::flock(
+            &contender,
+            rustix::fs::FlockOperation::NonBlockingLockExclusive,
+        );
+        assert!(
+            conflict.is_err(),
+            "held run.lock must block a second locker"
+        );
+
+        // Dropping the holder releases the lock; the contender can take it.
+        drop(held);
+        rustix::fs::flock(
+            &contender,
+            rustix::fs::FlockOperation::NonBlockingLockExclusive,
+        )
+        .expect("released run.lock must be re-lockable");
     }
 }

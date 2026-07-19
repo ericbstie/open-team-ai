@@ -23,9 +23,10 @@ use anyhow::Context as _;
 use clap::{CommandFactory, Parser};
 use openteam_core::{ReqwestLlmClient, RunConfig, SystemClock};
 use openteam_mock::{AppState, Scenario, serve};
+use openteam_serve::ServeConfig;
 use url::Url;
 
-use cli::{Cli, Command, MockCommand, RunArgs, ServeArgs};
+use cli::{Cli, Command, MockCommand, RunArgs, ServeArgs, StreamServeArgs};
 
 /// The default real endpoint used when neither `--mock` nor `--llm-base-url`
 /// is given (ADR 0026). The reqwest adapter treats the base as a path prefix
@@ -80,6 +81,7 @@ fn main() -> ExitCode {
         // spawns harness sessions onto the runtime, so it owns the runtime
         // rather than blocking on a single future.
         Command::Tui(args) => tui::run(runtime, args),
+        Command::Serve(args) => runtime.block_on(stream_serve_command(args)),
         Command::Mock {
             command: MockCommand::Serve(args),
         } => runtime.block_on(serve_command(args)),
@@ -279,6 +281,31 @@ async fn serve_command(args: ServeArgs) -> ExitCode {
     };
     println!("openteam mock listening on http://{addr}");
     tracing::info!(%addr, "mock serving; Ctrl-C to stop");
+
+    if let Err(error) = tokio::signal::ctrl_c().await {
+        eprintln!("openteam: failed to wait for Ctrl-C: {error}");
+        return ExitCode::from(1);
+    }
+    handle.shutdown().await;
+    ExitCode::SUCCESS
+}
+
+/// `openteam serve` (ADR 0027): the thin CLI wrapper over `openteam-serve`.
+/// Surface is exactly `--dir` + `--port`; the timing knobs stay off the CLI
+/// (ADR 0030), so the binary wires the pinned `ServeConfig` defaults.
+async fn stream_serve_command(args: StreamServeArgs) -> ExitCode {
+    let (addr, handle) =
+        match openteam_serve::serve(args.dir.clone(), ServeConfig::default(), args.port).await {
+            Ok(bound) => bound,
+            Err(error) => {
+                eprintln!("openteam: failed to bind the stream server: {error}");
+                return ExitCode::from(1);
+            }
+        };
+    // The parseable bound-address line (pins §9) — stdout, one line, the
+    // address is the token after the final space (load-bearing for the e2e).
+    println!("openteam serve listening on http://{addr}");
+    tracing::info!(%addr, dir = %args.dir.display(), "stream server serving; Ctrl-C to stop");
 
     if let Err(error) = tokio::signal::ctrl_c().await {
         eprintln!("openteam: failed to wait for Ctrl-C: {error}");
